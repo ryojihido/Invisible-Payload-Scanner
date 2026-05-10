@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Invisible Payload Scanner</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --ink: #1c2430;
+      --muted: #667085;
+      --line: #d8dee8;
+      --accent: #1f6feb;
+      --accent-dark: #174ea6;
+      --danger: #b42318;
+      --warn-bg: #fff4d6;
+      --ok: #067647;
+      --mono: Consolas, "Cascadia Mono", "Yu Gothic UI", monospace;
+      font-family: "Segoe UI", "Yu Gothic UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-size: 15px;
+    }
+    header {
+      background: #111827;
+      color: #fff;
+      padding: 18px 28px;
+      border-bottom: 4px solid #3b82f6;
+    }
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 650;
+      letter-spacing: 0;
+    }
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      margin-bottom: 18px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 14px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .span-12 { grid-column: span 12; }
+    .span-6 { grid-column: span 6; }
+    .span-4 { grid-column: span 4; }
+    .span-3 { grid-column: span 3; }
+    label {
+      font-size: 13px;
+      color: #344054;
+      font-weight: 650;
+    }
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid #b9c2d0;
+      border-radius: 6px;
+      padding: 10px 11px;
+      font: inherit;
+      background: #fff;
+      color: var(--ink);
+    }
+    textarea {
+      min-height: 74px;
+      resize: vertical;
+      font-family: var(--mono);
+    }
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .notice {
+      border: 1px solid #b9c2d0;
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #344054;
+      font-size: 13px;
+      line-height: 1.55;
+      margin-top: 10px;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-top: 16px;
+    }
+    button {
+      border: 1px solid transparent;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+      background: #e9eef7;
+      color: #172033;
+    }
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    button.primary:hover { background: var(--accent-dark); }
+    button:disabled {
+      opacity: .55;
+      cursor: wait;
+    }
+    .status {
+      color: var(--muted);
+      min-height: 24px;
+    }
+    .progress-wrap {
+      display: none;
+      width: 100%;
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfcfe;
+    }
+    .progress-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 8px;
+      color: #344054;
+      font-size: 13px;
+      font-weight: 650;
+    }
+    .progress-track {
+      height: 12px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #dbe4f0;
+      position: relative;
+    }
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #1f6feb, #00a6a6);
+      transition: width .2s ease;
+    }
+    .progress-bar.indeterminate {
+      width: 38%;
+      position: absolute;
+      animation: pulse-progress 1.2s ease-in-out infinite;
+    }
+    .progress-detail {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      word-break: break-all;
+    }
+    @keyframes pulse-progress {
+      0% { left: -40%; }
+      100% { left: 102%; }
+    }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(120px, 1fr));
+      gap: 10px;
+    }
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfcfe;
+    }
+    .metric strong {
+      display: block;
+      font-size: 24px;
+      margin-top: 4px;
+    }
+    .alert {
+      border: 1px solid #f2c94c;
+      background: var(--warn-bg);
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 14px;
+      color: #5f4700;
+      display: none;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 14px;
+      table-layout: fixed;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 9px 8px;
+      text-align: left;
+      vertical-align: top;
+      word-break: break-word;
+    }
+    th {
+      background: #f2f5f9;
+      font-size: 13px;
+      color: #344054;
+    }
+    .mono { font-family: var(--mono); font-size: 13px; }
+    .danger { color: var(--danger); font-weight: 700; }
+    .ok { color: var(--ok); font-weight: 700; }
+    .hidden { display: none; }
+    @media (max-width: 760px) {
+      main { padding: 14px; }
+      .span-6, .span-4, .span-3 { grid-column: span 12; }
+      .summary { grid-template-columns: 1fr 1fr; }
+      table { font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Invisible Payload Scanner</h1>
+  </header>
+  <main>
+    <section>
+      <div class="grid">
+        <div class="field span-12">
+          <label for="rootPath">スクリーニング対象フォルダ</label>
+          <div class="hint">自動読み込みはしません。検知したいフォルダパスをここに入力してください。</div>
+          <input id="rootPath" type="text" placeholder="例: C:\path\to\project または D:\work\repo">
+          <div class="hint">エクスプローラーで対象フォルダを開き、アドレスバーのパスをコピーして貼り付けてください。引用符つきでも使えます。</div>
+          <div class="hint">このツールは指定フォルダ配下のファイルを読み取り検索します。検索対象ファイルは実行しません。</div>
+        </div>
+        <div class="span-12 notice">通常はこのままスキャンできます。下の詳細設定は、対象ファイルを絞りたい時や誤検知を減らしたい時だけ変更してください。</div>
+        <div class="field span-4">
+          <label for="filter">ファイル名フィルタ</label>
+          <input id="filter" type="text" value="*.js;*.ts;*.mjs;*.cjs;*.jsx;*.tsx;*.json;*.ps1;*.cmd;*.bat;*.py;*.go;*.rs;*.java;*.cs;*.php;*.rb;*.sh;*.yml;*.yaml;*.toml;*.md">
+          <div class="hint">`;` 区切りで複数指定できます。全件なら `*`。</div>
+        </div>
+        <div class="field span-4">
+          <label for="ruleId">検索ルール</label>
+          <select id="ruleId">
+            <option value="glassworm_variation_selectors">GlassWorm既知: 異体字セレクタ連続</option>
+            <option value="zero_width_controls">ゼロ幅制御文字連続</option>
+            <option value="custom">カスタム正規表現</option>
+          </select>
+        </div>
+        <div class="field span-4">
+          <label for="minRun">連続検出しきい値</label>
+          <input id="minRun" type="number" min="1" max="1000" value="8">
+          <div class="hint">一次スクリーニングは8以上、広いPC全体スキャンなら16以上推奨です。</div>
+        </div>
+        <div class="field span-6">
+          <label for="excludeDirs">除外ディレクトリ名</label>
+          <input id="excludeDirs" type="text" value=".git">
+          <div class="hint">`;` 区切り。速度優先なら `node_modules;dist;build` などを追加。</div>
+        </div>
+        <div class="field span-3">
+          <label for="excludeFiles">除外ファイル名</label>
+          <input id="excludeFiles" type="text" value="README.md;*.md">
+          <div class="hint">説明文ファイル由来の絵文字誤検知を減らします。</div>
+        </div>
+        <div class="field span-3">
+          <label for="maxFileSizeMb">最大ファイルサイズMB</label>
+          <input id="maxFileSizeMb" type="number" min="1" max="100" value="20">
+          <div class="hint">公開版では安全のため100MB以下に制限しています。</div>
+        </div>
+        <div id="customPatternWrap" class="field span-12 hidden">
+          <label for="customPattern">カスタム正規表現</label>
+          <textarea id="customPattern" spellcheck="false">([\uFE00-\uFE0F]|\uDB40[\uDD00-\uDDEF]){3,}</textarea>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="scanButton" class="primary" type="button">スキャン開始</button>
+        <button id="exportButton" type="button" disabled>結果をJSON保存</button>
+        <button id="stopButton" type="button">サーバ停止</button>
+        <div id="status" class="status"></div>
+      </div>
+      <div class="hint">長いスキャンを中止したい場合は、起動したPowerShellウィンドウを閉じてください。結果JSONやスクリーンショットを共有する時は、ローカルパスやユーザー名が含まれていないか確認してください。</div>
+      <div id="progressWrap" class="progress-wrap">
+        <div class="progress-top">
+          <span id="progressPhase">待機中</span>
+          <span id="progressPercent">0%</span>
+        </div>
+        <div class="progress-track">
+          <div id="progressBar" class="progress-bar"></div>
+        </div>
+        <div id="progressDetail" class="progress-detail"></div>
+      </div>
+    </section>
+
+    <section id="resultSection" class="hidden">
+      <div id="summary" class="summary"></div>
+      <div id="resultGuide" class="notice"></div>
+      <div id="limitAlert" class="alert">結果が多いため、先頭5000件で表示を止めています。対象フォルダまたはフィルタを絞って再実行してください。</div>
+      <div id="errorAlert" class="alert"></div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 34%">ファイル</th>
+            <th style="width: 8%">位置</th>
+            <th style="width: 10%">長さ</th>
+            <th style="width: 20%">コードポイント</th>
+            <th>周辺表示</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    const API_TOKEN = "__API_TOKEN__";
+    const $ = (id) => document.getElementById(id);
+    let lastResult = null;
+
+    $("ruleId").addEventListener("change", () => {
+      $("customPatternWrap").classList.toggle("hidden", $("ruleId").value !== "custom");
+    });
+
+    $("rootPath").addEventListener("blur", () => {
+      $("rootPath").value = normalizePastedPath($("rootPath").value);
+    });
+
+    $("scanButton").addEventListener("click", async () => {
+      const payload = {
+        rootPath: normalizePastedPath($("rootPath").value),
+        filter: $("filter").value.trim(),
+        ruleId: $("ruleId").value,
+        minRun: Number($("minRun").value || 8),
+        excludeDirs: $("excludeDirs").value.trim(),
+        excludeFiles: $("excludeFiles").value.trim(),
+        maxFileSizeMb: Number($("maxFileSizeMb").value || 20),
+        customPattern: $("customPattern").value
+      };
+      if (!payload.rootPath) {
+        $("status").textContent = "対象フォルダを入力してください。";
+        return;
+      }
+
+      $("scanButton").disabled = true;
+      $("exportButton").disabled = true;
+      $("stopButton").disabled = true;
+      $("status").textContent = "スキャン中です。大きなフォルダでは少し時間がかかります。";
+      $("resultSection").classList.add("hidden");
+      showProgress({ phase: "enumerate", percent: 0, currentPath: payload.rootPath, scannedFiles: 0, candidateFiles: 0, matchCount: 0 });
+
+      try {
+        const response = await fetch("/api/scan-stream", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Scanner-Token": API_TOKEN },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok || !response.body) throw new Error("Scan failed.");
+        const data = await readScanStream(response);
+        if (!data.ok) throw new Error(data.error || "Scan failed.");
+        lastResult = data;
+        renderResult(data);
+        $("exportButton").disabled = false;
+        showProgress({ phase: "done", percent: 100, currentPath: "", scannedFiles: data.scannedFiles, candidateFiles: data.candidateFiles, matchCount: data.matchCount });
+        $("status").textContent = data.matchCount > 0 ? "検出があります。詳細を確認してください。" : "検出はありませんでした。";
+      } catch (error) {
+        $("status").textContent = "エラー: " + error.message;
+      } finally {
+        $("scanButton").disabled = false;
+        $("stopButton").disabled = false;
+      }
+    });
+
+    $("exportButton").addEventListener("click", () => {
+      if (!lastResult) return;
+      const blob = new Blob([JSON.stringify(lastResult, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      a.href = url;
+      a.download = `invisible-payload-scan-${stamp}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    $("stopButton").addEventListener("click", async () => {
+      try {
+        await fetch("/api/stop", { method: "POST", headers: { "X-Scanner-Token": API_TOKEN } });
+        $("status").textContent = "ローカルサーバを停止しました。このタブは閉じて大丈夫です。";
+      } catch {
+        $("status").textContent = "停止要求を送信できませんでした。PowerShellウィンドウを閉じてください。";
+      }
+    });
+
+    function renderResult(data) {
+      $("resultSection").classList.remove("hidden");
+      $("limitAlert").style.display = data.resultLimitReached ? "block" : "none";
+      $("errorAlert").style.display = data.errors.length ? "block" : "none";
+      $("errorAlert").textContent = data.errors.length ? `読み取りエラー ${data.errors.length} 件。一部の保護フォルダまたは壊れたファイルはスキップされています。` : "";
+      $("resultGuide").textContent = getResultGuide(data);
+
+      const verdict = data.matchCount > 0
+        ? `<span class="danger">検出あり</span>`
+        : `<span class="ok">検出なし</span>`;
+      $("summary").innerHTML = [
+        metric("判定", verdict),
+        metric("検出件数", data.matchCount),
+        metric("検出ファイル", data.matchedFiles),
+        metric("走査ファイル", data.scannedFiles),
+        metric("秒", data.elapsedSeconds)
+      ].join("");
+
+      const body = $("resultsBody");
+      body.textContent = "";
+      for (const row of data.results) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="mono"></td>
+          <td class="mono"></td>
+          <td class="mono"></td>
+          <td class="mono"></td>
+          <td class="mono"></td>
+        `;
+        tr.children[0].textContent = row.path;
+        tr.children[1].textContent = `${row.line}:${row.column}`;
+        tr.children[2].textContent = row.runLength;
+        tr.children[3].textContent = row.codePoints;
+        tr.children[4].textContent = row.snippet;
+        body.appendChild(tr);
+      }
+    }
+
+    function getResultGuide(data) {
+      if (!data.matchCount) {
+        return "検出はありませんでした。ただし、不可視文字以外のマルウェアや外部ダウンロード型の挙動まで安全を保証するものではありません。";
+      }
+      const executableHit = data.results.some((row) => /\.(js|ts|mjs|cjs|jsx|tsx|ps1|cmd|bat|sh|py|json|ya?ml|toml)$/i.test(row.path || ""));
+      if (executableHit) {
+        return "実行・ビルドに関係しやすいファイルで検出があります。しきい値を16に上げて再スキャンし、該当パッケージの実行やインストールは確認が終わるまで止めてください。";
+      }
+      return "検出があります。READMEやMarkdownなど説明文ファイルだけの場合は誤検知の可能性があります。除外ファイル名を既定値に戻すか、実行ファイル系だけに絞って再スキャンしてください。";
+    }
+
+    function normalizePastedPath(value) {
+      let text = (value || "").trim();
+      if (text.length >= 2) {
+        const first = text[0];
+        const last = text[text.length - 1];
+        if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+          text = text.slice(1, -1).trim();
+        }
+      }
+      return text;
+    }
+
+    async function readScanStream(response) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalResult = null;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line);
+          if (event.type === "progress") {
+            showProgress(event);
+          } else if (event.type === "result") {
+            finalResult = event.result;
+          } else if (event.type === "error") {
+            throw new Error(event.error || "Scan failed.");
+          }
+        }
+      }
+
+      if (!finalResult) throw new Error("スキャン結果を受信できませんでした。");
+      return finalResult;
+    }
+
+    function showProgress(event) {
+      $("progressWrap").style.display = "block";
+      const phaseText = event.phase === "enumerate" ? "候補ファイルを数えています"
+        : event.phase === "scan" ? "不可視文字を検索しています"
+        : event.phase === "done" ? "完了"
+        : "動作中";
+      const percent = Number(event.percent || 0);
+      $("progressPhase").textContent = phaseText;
+      $("progressPercent").textContent = event.phase === "enumerate" ? "準備中" : `${percent}%`;
+      $("progressBar").classList.toggle("indeterminate", event.phase === "enumerate");
+      $("progressBar").style.width = event.phase === "enumerate" ? "" : `${Math.max(0, Math.min(100, percent))}%`;
+      const counts = `候補 ${event.candidateFiles || 0} 件 / 走査 ${event.scannedFiles || 0} 件 / 検出 ${event.matchCount || 0} 件`;
+      $("progressDetail").textContent = event.currentPath ? `${counts} / ${event.currentPath}` : counts;
+    }
+
+    function metric(label, value) {
+      return `<div class="metric"><span>${label}</span><strong>${value}</strong></div>`;
+    }
+  </script>
+</body>
+</html>

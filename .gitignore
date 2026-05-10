@@ -1,0 +1,5 @@
+_selftest/
+*.log
+*.tmp
+glassworm-scan-*.json
+invisible-payload-scan-*.json
