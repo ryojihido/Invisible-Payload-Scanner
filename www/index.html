@@ -255,9 +255,13 @@
           <label for="ruleId">検索ルール</label>
           <select id="ruleId">
             <option value="glassworm_variation_selectors">GlassWorm既知: 異体字セレクタ連続</option>
+            <option value="glassworm_decoder_pattern">GlassWorm系: 可視デコーダ兆候</option>
             <option value="zero_width_controls">ゼロ幅制御文字連続</option>
+            <option value="bidi_controls">Trojan Source系: 双方向制御文字</option>
+            <option value="hangul_filler">不可視識別子: Hangul filler</option>
             <option value="custom">カスタム正規表現</option>
           </select>
+          <div class="hint">既定は不可視ペイロード本体の検出です。デコーダ兆候や別種の不可視文字は必要に応じて選びます。</div>
         </div>
         <div class="field span-4">
           <label for="minRun">連続検出しきい値</label>

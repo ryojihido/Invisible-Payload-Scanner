@@ -33,6 +33,7 @@ Out of scope:
 
 - Missed malware that does not use the configured invisible Unicode patterns
 - Malicious files that are present but never matched by the selected filters
+- Full C2 fingerprinting, credential-harvesting behavior detection, and known-IoC matching
 - Operating system compromise outside this scanner
 - Security of projects being scanned
 

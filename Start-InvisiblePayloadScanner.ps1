@@ -52,6 +52,27 @@ function Get-Rule {
                 pattern = "([\u200B-\u200F\u2060-\u2064\uFEFF]){" + $n + ",}"
             }
         }
+        "glassworm_decoder_pattern" {
+            return @{
+                id = $RuleId
+                name = "GlassWorm-style visible decoder pattern"
+                pattern = "codePointAt\s*\([\s\S]{0,800}(0xFE00|0xE0100)[\s\S]{0,800}(eval\s*\(|new\s+Function|Buffer\.from)"
+            }
+        }
+        "bidi_controls" {
+            return @{
+                id = $RuleId
+                name = "Bidirectional control character"
+                pattern = "[\u202A-\u202E\u2066-\u2069]{" + $n + ",}"
+            }
+        }
+        "hangul_filler" {
+            return @{
+                id = $RuleId
+                name = "Hangul filler character"
+                pattern = "\u3164{" + $n + ",}"
+            }
+        }
         "custom" {
             if ([string]::IsNullOrWhiteSpace($CustomPattern)) {
                 throw "Custom pattern is empty."

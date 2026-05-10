@@ -71,6 +71,8 @@ Markdown documentation often contains emoji-related `U+FE0F` characters, and REA
 
 This design does not guarantee detection of binary malware, externally downloaded installers, non-Unicode loaders, compromised dependencies, or every malicious execution path.
 
+It also does not attempt full C2 fingerprinting, credential-harvesting behavior detection, or known-IoC matching for package names, extension names, IP addresses, wallets, or attacker infrastructure. The focus is local first-pass screening for invisible Unicode payloads and closely related visible decoder patterns.
+
 ## After a Finding
 
 Treat findings in executable or build-time files as higher priority:
