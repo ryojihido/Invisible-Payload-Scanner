@@ -266,6 +266,591 @@ function ConvertFrom-PastedPath {
     return $normalized
 }
 
+function Get-DefaultSupplyChainRules {
+    return [pscustomobject]@{
+        schemaVersion = 1
+        updatedAt = "2026-05-13"
+        loadStatus = "fallback"
+        loadMessage = "rules/ioc-rules.json could not be loaded. Built-in minimal rules are active."
+        rulesets = @(
+            [pscustomobject]@{
+                id = "built-in-minimal"
+                name = "Built-in minimal IOC rules"
+                sourceNote = "Fallback rules used when rules/ioc-rules.json cannot be read."
+                stringIocs = @(
+                    "github:tanstack/router#79ac49eedf774dd4b0cfa308722bc463cfe5885c",
+                    "@tanstack/setup",
+                    "router_init.js",
+                    "tanstack_runner.js",
+                    "filev2.getsession.org",
+                    "seed1.getsession.org",
+                    "seed2.getsession.org",
+                    "seed3.getsession.org"
+                )
+                packageRules = @(
+                    [pscustomobject]@{
+                        namePattern = "^@tanstack/"
+                        severity = "medium"
+                        message = "TanStack package name found. Package name alone is not a malicious indicator; check version and IoCs."
+                    }
+                )
+                packageVersionRules = @()
+                dangerousCommandTerms = @("powershell", "pwsh", "cmd.exe", "curl", "wget", "iwr", "irm", "node -e", "python -c", "child_process", "exec", "spawn", "eval", "Buffer.from", "fromCharCode")
+                installScriptNames = @("preinstall", "install", "postinstall", "prepare", "prepack", "postpack")
+            }
+        )
+    }
+}
+
+function Get-SupplyChainRules {
+    $rulesPath = Join-Path $PSScriptRoot "rules\ioc-rules.json"
+    if (-not (Test-Path -LiteralPath $rulesPath -PathType Leaf)) {
+        return Get-DefaultSupplyChainRules
+    }
+
+    try {
+        $rules = (Read-TextFile -Path $rulesPath) | ConvertFrom-Json
+        $rules | Add-Member -NotePropertyName "loadStatus" -NotePropertyValue "loaded" -Force
+        $rules | Add-Member -NotePropertyName "loadMessage" -NotePropertyValue "Bundled IOC rules loaded." -Force
+        return $rules
+    }
+    catch {
+        return Get-DefaultSupplyChainRules
+    }
+}
+
+function ConvertTo-Array {
+    param($Value)
+
+    if ($null -eq $Value) {
+        return @()
+    }
+    if ($Value -is [System.Array]) {
+        return @($Value)
+    }
+    return @($Value)
+}
+
+function ConvertTo-MaskedText {
+    param([string]$Text)
+
+    if ([string]::IsNullOrEmpty($Text)) {
+        return $Text
+    }
+
+    $masked = $Text
+    $patterns = @(
+        "gh[pousr]_[A-Za-z0-9_]{12,}",
+        "github_pat_[A-Za-z0-9_]{20,}",
+        "npm_[A-Za-z0-9_]{12,}",
+        "sk-[A-Za-z0-9]{16,}",
+        "xox[baprs]-[A-Za-z0-9-]{16,}",
+        "AKIA[0-9A-Z]{12,}",
+        "-----BEGIN OPENSSH PRIVATE KEY-----[\s\S]{0,80}"
+    )
+    foreach ($pattern in $patterns) {
+        $masked = [System.Text.RegularExpressions.Regex]::Replace(
+            $masked,
+            $pattern,
+            { param($m) ($m.Value.Substring(0, [Math]::Min(4, $m.Value.Length)) + "****MASKED****") },
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase,
+            [TimeSpan]::FromSeconds(1)
+        )
+    }
+    return $masked
+}
+
+function Get-TextSnippet {
+    param(
+        [string]$Text,
+        [int]$Index,
+        [int]$Length
+    )
+
+    $start = [Math]::Max(0, $Index - 80)
+    $end = [Math]::Min($Text.Length, $Index + $Length + 80)
+    $snippet = $Text.Substring($start, $end - $start)
+    $snippet = $snippet -replace "[`r`n`t]+", " "
+    return ConvertTo-MaskedText -Text $snippet
+}
+
+function New-Finding {
+    param(
+        [string]$Severity,
+        [string]$Category,
+        [string]$Path,
+        [int]$Line = 0,
+        [int]$Column = 0,
+        [string]$Match = "",
+        [string]$Message,
+        [string]$Recommendation,
+        [string]$Snippet = "",
+        [string]$Source = "supply-chain-ioc",
+        [int]$RunLength = 0,
+        [string]$CodePoints = ""
+    )
+
+    return @{
+        severity = $Severity.ToLowerInvariant()
+        category = $Category
+        path = $Path
+        line = $Line
+        column = $Column
+        match = (ConvertTo-MaskedText -Text $Match)
+        message = $Message
+        recommendation = $Recommendation
+        snippet = (ConvertTo-MaskedText -Text $Snippet)
+        source = $Source
+        pathContext = (Get-PathContext -Path $Path)
+        runLength = $RunLength
+        codePoints = $CodePoints
+    }
+}
+
+function Get-EmptySeveritySummary {
+    return @{
+        critical = 0
+        high = 0
+        medium = 0
+        low = 0
+        info = 0
+    }
+}
+
+function Add-SeverityCount {
+    param(
+        [hashtable]$Summary,
+        [string]$Severity
+    )
+
+    $key = $Severity.ToLowerInvariant()
+    if (-not $Summary.ContainsKey($key)) {
+        $Summary[$key] = 0
+    }
+    $Summary[$key]++
+}
+
+function Test-InNodeModules {
+    param([string]$Path)
+
+    return ($Path -match "(?i)(^|[\\/])node_modules([\\/]|$)")
+}
+
+function Get-PathContext {
+    param([string]$Path)
+
+    if ($Path -match "(?i)[\\/]\.antigravity[\\/]extensions[\\/]" -or $Path -match "(?i)[\\/]\.vscode[\\/]extensions[\\/]") {
+        return "editor-extension"
+    }
+    if ($Path -match "(?i)[\\/]rules[\\/]ioc-rules\.json$") {
+        return "scanner-rule-file"
+    }
+    if (Test-InNodeModules -Path $Path) {
+        return "node_modules"
+    }
+    if ($Path -match "(?i)([\\/](README|docs|CHANGELOG)|\.(md|txt)$)") {
+        return "documentation"
+    }
+    return "project-file"
+}
+
+function Get-RelativePath {
+    param(
+        [string]$Root,
+        [string]$Path
+    )
+
+    if ($Path.StartsWith($Root, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $Path.Substring($Root.Length).TrimStart("\", "/")
+    }
+    return $Path
+}
+
+function Test-SupplyCandidateFile {
+    param(
+        [System.IO.FileInfo]$File,
+        [string]$RootPath,
+        [bool]$NodeModulesFullScan
+    )
+
+    $name = $File.Name
+    $fullPath = $File.FullName
+    $relative = (Get-RelativePath -Root $RootPath -Path $fullPath).Replace("/", "\")
+    $extension = $File.Extension.ToLowerInvariant()
+    $isNodeModules = Test-InNodeModules -Path $fullPath
+
+    if ($isNodeModules -and -not $NodeModulesFullScan) {
+        return ($name -eq "package.json")
+    }
+
+    if ($name -in @("package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb", ".npmrc")) {
+        return $true
+    }
+    if ($name -like ".env*") {
+        return $true
+    }
+    if ($relative -in @(".vscode\tasks.json", ".vscode\launch.json", ".claude\settings.json", ".claude\settings.local.json")) {
+        return $true
+    }
+    if ($relative -like ".github\workflows\*.yml" -or $relative -like ".github\workflows\*.yaml") {
+        return $true
+    }
+    if ($extension -in @(".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".json", ".yaml", ".yml", ".toml", ".ps1", ".cmd", ".bat", ".sh")) {
+        return $true
+    }
+    return $false
+}
+
+function Test-TextContainsAny {
+    param(
+        [string]$Text,
+        [string[]]$Terms
+    )
+
+    foreach ($term in $Terms) {
+        if ([string]::IsNullOrWhiteSpace($term)) {
+            continue
+        }
+        if ($Text.IndexOf($term, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Get-FirstTermMatch {
+    param(
+        [string]$Text,
+        [string[]]$Terms
+    )
+
+    foreach ($term in $Terms) {
+        if ([string]::IsNullOrWhiteSpace($term)) {
+            continue
+        }
+        $index = $Text.IndexOf($term, [System.StringComparison]::OrdinalIgnoreCase)
+        if ($index -ge 0) {
+            return @{
+                term = $term
+                index = $index
+            }
+        }
+    }
+    return $null
+}
+
+function Get-PackageVersionRule {
+    param(
+        $Rules,
+        [string]$Name,
+        [string]$Version
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Name) -or [string]::IsNullOrWhiteSpace($Version)) {
+        return $null
+    }
+
+    foreach ($ruleset in (ConvertTo-Array $Rules.rulesets)) {
+        foreach ($rule in (ConvertTo-Array $ruleset.packageVersionRules)) {
+            if ([string]$rule.name -ne $Name) {
+                continue
+            }
+            foreach ($candidate in (ConvertTo-Array $rule.versions)) {
+                if ([string]$candidate -eq $Version) {
+                    return $rule
+                }
+            }
+        }
+    }
+    return $null
+}
+
+function Add-PackageNameFindings {
+    param(
+        [System.Collections.Generic.List[object]]$Findings,
+        $Rules,
+        [string]$Path,
+        [string]$Name,
+        [string]$Version,
+        [int]$Line = 0
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return
+    }
+
+    $exact = Get-PackageVersionRule -Rules $Rules -Name $Name -Version $Version
+    if ($null -ne $exact) {
+        $recommendation = "Do not run install/build for this project. Confirm the source, clean the lockfile, and use patched version $($exact.patchedVersion) or later if applicable."
+        $Findings.Add((New-Finding -Severity "critical" -Category "known-malicious-package-version" -Path $Path -Line $Line -Match "$Name@$Version" -Message "Known affected TanStack package version matched." -Recommendation $recommendation))
+        return
+    }
+
+    foreach ($ruleset in (ConvertTo-Array $Rules.rulesets)) {
+        foreach ($rule in (ConvertTo-Array $ruleset.packageRules)) {
+            try {
+                if ([System.Text.RegularExpressions.Regex]::IsMatch($Name, [string]$rule.namePattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase, [TimeSpan]::FromSeconds(1))) {
+                    $matchText = $Name
+                    if (-not [string]::IsNullOrWhiteSpace($Version)) {
+                        $matchText = "$Name@$Version"
+                    }
+                    $Findings.Add((New-Finding -Severity ([string]$rule.severity) -Category "package-name-candidate" -Path $Path -Line $Line -Match $matchText -Message ([string]$rule.message) -Recommendation "Package name alone is not proof of compromise. Check the exact version, lockfile, and official advisory before running install."))
+                    return
+                }
+            }
+            catch {
+            }
+        }
+    }
+}
+
+function Get-JsonPropertyValue {
+    param(
+        $Object,
+        [string]$Name
+    )
+
+    if ($null -eq $Object) {
+        return $null
+    }
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $null
+    }
+    return $property.Value
+}
+
+function Add-DependencyFindings {
+    param(
+        [System.Collections.Generic.List[object]]$Findings,
+        $Rules,
+        [string]$Path,
+        $Manifest
+    )
+
+    foreach ($sectionName in @("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")) {
+        $section = Get-JsonPropertyValue -Object $Manifest -Name $sectionName
+        if ($null -eq $section) {
+            continue
+        }
+        foreach ($dep in $section.PSObject.Properties) {
+            $depName = [string]$dep.Name
+            $depVersion = [string]$dep.Value
+            foreach ($exactRule in (ConvertTo-Array ((ConvertTo-Array $Rules.rulesets)[0].packageVersionRules))) {
+                if ([string]$exactRule.name -ne $depName) {
+                    continue
+                }
+                foreach ($badVersion in (ConvertTo-Array $exactRule.versions)) {
+                    if ($depVersion -match ("(^|[^0-9A-Za-z.])" + [System.Text.RegularExpressions.Regex]::Escape([string]$badVersion) + "($|[^0-9A-Za-z.])")) {
+                        $Findings.Add((New-Finding -Severity "high" -Category "dependency-version-candidate" -Path $Path -Match "$depName@$depVersion" -Message "Dependency spec references a known affected package version." -Recommendation "Stop before install. Regenerate from a clean lockfile and update to the patched version listed in the advisory."))
+                    }
+                }
+            }
+            Add-PackageNameFindings -Findings $Findings -Rules $Rules -Path $Path -Name $depName -Version ""
+        }
+    }
+}
+
+function Add-InstallScriptFindings {
+    param(
+        [System.Collections.Generic.List[object]]$Findings,
+        $Rules,
+        [string]$Path,
+        $Manifest
+    )
+
+    $scripts = Get-JsonPropertyValue -Object $Manifest -Name "scripts"
+    if ($null -eq $scripts) {
+        return
+    }
+
+    $installNames = @()
+    $dangerTerms = @()
+    foreach ($ruleset in (ConvertTo-Array $Rules.rulesets)) {
+        $installNames += (ConvertTo-Array $ruleset.installScriptNames)
+        $dangerTerms += (ConvertTo-Array $ruleset.dangerousCommandTerms)
+    }
+
+    foreach ($name in $installNames) {
+        $scriptValue = Get-JsonPropertyValue -Object $scripts -Name ([string]$name)
+        if ($null -eq $scriptValue) {
+            continue
+        }
+        $scriptText = [string]$scriptValue
+        $dangerMatch = Get-FirstTermMatch -Text $scriptText -Terms $dangerTerms
+        if ($null -ne $dangerMatch) {
+            $Findings.Add((New-Finding -Severity "high" -Category "install-script-danger-term" -Path $Path -Match "${name}: $($dangerMatch.term)" -Message "Install-time script contains a shell, network, or obfuscation-related term." -Recommendation "Do not run install until you understand this lifecycle script." -Snippet $scriptText))
+        }
+        else {
+            $Findings.Add((New-Finding -Severity "medium" -Category "install-script-present" -Path $Path -Match $name -Message "Install-time lifecycle script is present." -Recommendation "This can be legitimate, but unknown projects should not be installed until the script is reviewed." -Snippet $scriptText))
+        }
+    }
+}
+
+function Add-KnownIocFindings {
+    param(
+        [System.Collections.Generic.List[object]]$Findings,
+        $Rules,
+        [string]$Path,
+        [string]$Text
+    )
+
+    foreach ($ruleset in (ConvertTo-Array $Rules.rulesets)) {
+        foreach ($ioc in (ConvertTo-Array $ruleset.stringIocs)) {
+            if ([string]::IsNullOrWhiteSpace($ioc)) {
+                continue
+            }
+            $index = $Text.IndexOf([string]$ioc, [System.StringComparison]::OrdinalIgnoreCase)
+            if ($index -lt 0) {
+                continue
+            }
+            $pos = Get-LineColumn -Text $Text -Index $index
+            $severity = "critical"
+            if (Test-InNodeModules -Path $Path) {
+                $severity = "high"
+            }
+            if ($Path -match "(?i)[\\/]rules[\\/]ioc-rules\.json$") {
+                $severity = "info"
+            }
+            if ($Path -match "(?i)([\\/](README|docs|CHANGELOG)|\.(md|txt)$)") {
+                $severity = "low"
+            }
+            $Findings.Add((New-Finding -Severity $severity -Category "known-ioc-string" -Path $Path -Line $pos.line -Column $pos.column -Match ([string]$ioc) -Message "Known public IOC string matched." -Recommendation "Stop before running this project. Confirm the source, package versions, and official advisory." -Snippet (Get-TextSnippet -Text $Text -Index $index -Length ([string]$ioc).Length)))
+        }
+    }
+}
+
+function Add-VscodeTaskFindings {
+    param(
+        [System.Collections.Generic.List[object]]$Findings,
+        $Rules,
+        [string]$Path,
+        [string]$Text
+    )
+
+    if ($Path -notmatch "(?i)[\\/]\.vscode[\\/]tasks\.json$") {
+        return
+    }
+
+    $dangerTerms = @()
+    foreach ($ruleset in (ConvertTo-Array $Rules.rulesets)) {
+        $dangerTerms += (ConvertTo-Array $ruleset.dangerousCommandTerms)
+    }
+    $hasRunOn = ($Text -match '"runOn"\s*:\s*"folderOpen"')
+    if ($hasRunOn -and (Test-TextContainsAny -Text $Text -Terms $dangerTerms)) {
+        $Findings.Add((New-Finding -Severity "critical" -Category "vscode-folder-open-task" -Path $Path -Match "runOn: folderOpen" -Message "VS Code task may run automatically when the folder opens and contains command-like terms." -Recommendation "Open unknown projects in Restricted Mode and inspect .vscode/tasks.json before using VS Code."))
+    }
+    elseif ($hasRunOn) {
+        $Findings.Add((New-Finding -Severity "high" -Category "vscode-folder-open-task" -Path $Path -Match "runOn: folderOpen" -Message "VS Code task may run automatically when the folder opens." -Recommendation "Inspect the task command before opening this project normally."))
+    }
+    elseif ($Text -match '"type"\s*:\s*"(shell|process)"') {
+        $Findings.Add((New-Finding -Severity "medium" -Category "vscode-shell-task" -Path $Path -Match "shell/process task" -Message "VS Code shell/process task is defined." -Recommendation "This can be legitimate, but review unknown project tasks before running them."))
+    }
+    else {
+        $Findings.Add((New-Finding -Severity "info" -Category "vscode-tasks-present" -Path $Path -Match "tasks.json" -Message "VS Code tasks.json is present." -Recommendation "Review tasks before trusting an unknown project."))
+    }
+}
+
+function Add-ClaudeSettingsFindings {
+    param(
+        [System.Collections.Generic.List[object]]$Findings,
+        $Rules,
+        [string]$Path,
+        [string]$Text
+    )
+
+    if ($Path -notmatch "(?i)[\\/]\.claude[\\/]settings(\.local)?\.json$") {
+        return
+    }
+
+    $dangerTerms = @()
+    foreach ($ruleset in (ConvertTo-Array $Rules.rulesets)) {
+        $dangerTerms += (ConvertTo-Array $ruleset.dangerousCommandTerms)
+    }
+
+    if ($Text -match '"hooks"\s*:') {
+        if (Test-TextContainsAny -Text $Text -Terms $dangerTerms) {
+            $Findings.Add((New-Finding -Severity "high" -Category "ai-agent-hooks-danger-term" -Path $Path -Match "hooks" -Message "AI agent hooks are present and contain command-like terms." -Recommendation "Do not let an AI agent open or auto-run this project until the hooks are reviewed."))
+        }
+        else {
+            $Findings.Add((New-Finding -Severity "medium" -Category "ai-agent-hooks-present" -Path $Path -Match "hooks" -Message "AI agent hooks are present." -Recommendation "Hooks can be legitimate automation, but unknown project hooks should be reviewed first."))
+        }
+    }
+    else {
+        $Findings.Add((New-Finding -Severity "info" -Category "claude-settings-present" -Path $Path -Match ".claude/settings" -Message "Claude settings file is present." -Recommendation "Review agent settings before trusting an unknown project."))
+    }
+}
+
+function Add-LockfileVersionFindings {
+    param(
+        [System.Collections.Generic.List[object]]$Findings,
+        $Rules,
+        [string]$Path,
+        [string]$Text
+    )
+
+    if ($Path -notmatch "(?i)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|bun\.lockb?)$") {
+        return
+    }
+
+    foreach ($ruleset in (ConvertTo-Array $Rules.rulesets)) {
+        foreach ($rule in (ConvertTo-Array $ruleset.packageVersionRules)) {
+            $name = [string]$rule.name
+            $nameIndex = $Text.IndexOf($name, [System.StringComparison]::OrdinalIgnoreCase)
+            if ($nameIndex -lt 0) {
+                continue
+            }
+            foreach ($version in (ConvertTo-Array $rule.versions)) {
+                $versionText = [string]$version
+                $searchFrom = $nameIndex
+                while ($searchFrom -ge 0 -and $searchFrom -lt $Text.Length) {
+                    $currentNameIndex = $Text.IndexOf($name, $searchFrom, [System.StringComparison]::OrdinalIgnoreCase)
+                    if ($currentNameIndex -lt 0) {
+                        break
+                    }
+                    $windowStart = [Math]::Max(0, $currentNameIndex - 260)
+                    $windowEnd = [Math]::Min($Text.Length, $currentNameIndex + $name.Length + 520)
+                    $window = $Text.Substring($windowStart, $windowEnd - $windowStart)
+                    if ($window.IndexOf($versionText, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                        $pos = Get-LineColumn -Text $Text -Index $currentNameIndex
+                        $Findings.Add((New-Finding -Severity "medium" -Category "lockfile-version-candidate" -Path $Path -Line $pos.line -Column $pos.column -Match "$name@$versionText" -Message "Lockfile contains a known affected package name near a known affected version string." -Recommendation "This is a candidate, not proof. Before installing, open the lockfile entry and confirm that this exact package resolves to this version. If unsure, stop and compare with the official advisory." -Snippet (Get-TextSnippet -Text $Text -Index $currentNameIndex -Length $name.Length)))
+                        break
+                    }
+                    $searchFrom = $currentNameIndex + $name.Length
+                }
+            }
+        }
+    }
+}
+
+function Scan-SupplyChainFile {
+    param(
+        [System.Collections.Generic.List[object]]$Findings,
+        $Rules,
+        [System.IO.FileInfo]$File
+    )
+
+    $text = Read-TextFile -Path $File.FullName
+    Add-KnownIocFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Text $text
+    Add-VscodeTaskFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Text $text
+    Add-ClaudeSettingsFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Text $text
+    Add-LockfileVersionFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Text $text
+
+    if ($File.Name -eq "package.json") {
+        try {
+            $manifest = $text | ConvertFrom-Json
+            $packageName = [string](Get-JsonPropertyValue -Object $manifest -Name "name")
+            $packageVersion = [string](Get-JsonPropertyValue -Object $manifest -Name "version")
+            Add-PackageNameFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Name $packageName -Version $packageVersion
+            Add-DependencyFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Manifest $manifest
+            Add-InstallScriptFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Manifest $manifest
+        }
+        catch {
+            $Findings.Add((New-Finding -Severity "low" -Category "package-json-parse-error" -Path $File.FullName -Match "package.json" -Message "package.json could not be parsed as JSON." -Recommendation "Review this file manually if it came from an unknown project."))
+        }
+    }
+}
+
 function Invoke-Scanner {
     param(
         $Options,
@@ -297,7 +882,7 @@ function Invoke-Scanner {
 
     $excludeText = [string]$Options.excludeDirs
     if ([string]::IsNullOrWhiteSpace($excludeText)) {
-        $excludeText = ".git"
+        $excludeText = ".git;dist;build;coverage;.cache;.next;.nuxt;out;.tmp;temp"
     }
     if ($excludeText.Length -gt $MaxFilterTextLength) {
         throw "Excluded directory list is too long."
@@ -329,15 +914,35 @@ function Invoke-Scanner {
     $maxFileSizeMb = [Math]::Max(1, [Math]::Min(100, $maxFileSizeMb))
     $maxBytes = [int64]($maxFileSizeMb * 1024 * 1024)
 
+    $scanMode = "invisible-unicode"
+    if (Test-OptionExists -Options $Options -Name "scanMode" -and -not [string]::IsNullOrWhiteSpace([string]$Options.scanMode)) {
+        $scanMode = [string]$Options.scanMode
+    }
+    if ($scanMode -notin @("invisible-unicode", "supply-chain-ioc", "full-safety-pre-scan")) {
+        $scanMode = "invisible-unicode"
+    }
+    $runInvisibleScan = ($scanMode -in @("invisible-unicode", "full-safety-pre-scan"))
+    $runSupplyChainScan = ($scanMode -in @("supply-chain-ioc", "full-safety-pre-scan"))
+
+    $nodeModulesFullScan = $false
+    if (Test-OptionExists -Options $Options -Name "supplyNodeModulesFullScan") {
+        $nodeModulesFullScan = [bool]$Options.supplyNodeModulesFullScan
+    }
+
     if ([string]$Options.ruleId -eq "custom" -and ([string]$Options.customPattern).Length -gt $MaxCustomPatternLength) {
         throw "Custom pattern is too long."
     }
-    $rule = Get-Rule -RuleId ([string]$Options.ruleId) -MinRun $minRun -CustomPattern ([string]$Options.customPattern)
-    $regex = [System.Text.RegularExpressions.Regex]::new(
-        [string]$rule.pattern,
-        [System.Text.RegularExpressions.RegexOptions]::CultureInvariant,
-        [TimeSpan]::FromSeconds(2)
-    )
+    $rule = $null
+    $regex = $null
+    if ($runInvisibleScan) {
+        $rule = Get-Rule -RuleId ([string]$Options.ruleId) -MinRun $minRun -CustomPattern ([string]$Options.customPattern)
+        $regex = [System.Text.RegularExpressions.Regex]::new(
+            [string]$rule.pattern,
+            [System.Text.RegularExpressions.RegexOptions]::CultureInvariant,
+            [TimeSpan]::FromSeconds(2)
+        )
+    }
+    $supplyRules = Get-SupplyChainRules
 
     $binaryExtensions = @(
         ".7z", ".avi", ".bmp", ".cab", ".class", ".dll", ".doc", ".docx", ".exe", ".gif",
@@ -409,13 +1014,6 @@ function Invoke-Scanner {
                 continue
             }
 
-            if (Test-NameMatchesAny -Name $child.Name -Patterns $excludeFiles) {
-                $skippedFiles++
-                continue
-            }
-            if (-not (Test-NameMatchesAny -Name $child.Name -Patterns $filters)) {
-                continue
-            }
             if ($binaryExtensions -contains $child.Extension.ToLowerInvariant()) {
                 $skippedFiles++
                 continue
@@ -425,9 +1023,30 @@ function Invoke-Scanner {
                 continue
             }
 
-            $candidateFiles.Add($child)
+            $isInvisibleCandidate = $false
+            if ($runInvisibleScan) {
+                if (Test-NameMatchesAny -Name $child.Name -Patterns $excludeFiles) {
+                    $skippedFiles++
+                }
+                elseif (Test-NameMatchesAny -Name $child.Name -Patterns $filters) {
+                    $isInvisibleCandidate = $true
+                }
+            }
+            $isSupplyCandidate = $false
+            if ($runSupplyChainScan) {
+                $isSupplyCandidate = Test-SupplyCandidateFile -File $child -RootPath (Resolve-Path -LiteralPath $rootPath).Path -NodeModulesFullScan $nodeModulesFullScan
+            }
+            if (-not ($isInvisibleCandidate -or $isSupplyCandidate)) {
+                continue
+            }
+
+            $candidateFiles.Add([pscustomobject]@{
+                file = $child
+                invisible = $isInvisibleCandidate
+                supply = $isSupplyCandidate
+            })
             if ($candidateFiles.Count -gt $MaxCandidateFiles) {
-                throw "Too many candidate files. Narrow the target folder or filters and scan again."
+                throw ("Too many candidate files. Limit: {0}. Narrow the target to a downloaded project folder, or add exclusions such as node_modules;AppData;Windows;Program Files." -f $MaxCandidateFiles)
             }
             if (($candidateFiles.Count % 500) -eq 0) {
                 Send-ScannerProgress -Phase "enumerate" -Percent 0 -CurrentPath $child.FullName
@@ -438,28 +1057,31 @@ function Invoke-Scanner {
     Send-ScannerProgress -Phase "scan" -Percent 0 -CurrentPath ""
     $totalCandidates = [Math]::Max(1, $candidateFiles.Count)
 
-    foreach ($child in $candidateFiles) {
+    foreach ($candidate in $candidateFiles) {
+            $child = $candidate.file
             $scannedFiles++
             try {
                 $text = Read-TextFile -Path $child.FullName
-                $matches = $regex.Matches($text)
-                if ($matches.Count -gt 0) {
-                    $matchedFiles++
-                }
-
-                foreach ($match in $matches) {
-                    if ($results.Count -ge $maxResults) {
-                        break
+                $beforeCount = $results.Count
+                if ($candidate.invisible) {
+                    $matches = $regex.Matches($text)
+                    foreach ($match in $matches) {
+                        if ($results.Count -ge $maxResults) {
+                            break
+                        }
+                        $pos = Get-LineColumn -Text $text -Index $match.Index
+                        $severity = "high"
+                        if ($child.FullName -match "(?i)([\\/](README|docs|CHANGELOG)|\.(md|txt)$)") {
+                            $severity = "low"
+                        }
+                        $results.Add((New-Finding -Severity $severity -Category "invisible-unicode" -Path $child.FullName -Line $pos.line -Column $pos.column -Match "Invisible Unicode sequence" -Message "Invisible Unicode sequence matched the selected rule." -Recommendation "Confirm whether this file is executed or only documentation. Do not run unknown projects until executable hits are understood." -Snippet (ConvertTo-VisibleSnippet -Text $text -Index $match.Index -Length $match.Length) -Source "invisible-unicode" -RunLength (Get-CodePointCount -Text $match.Value) -CodePoints (Get-CodePointList -Text $match.Value)))
                     }
-                    $pos = Get-LineColumn -Text $text -Index $match.Index
-                    $results.Add(@{
-                        path = $child.FullName
-                        line = $pos.line
-                        column = $pos.column
-                        runLength = Get-CodePointCount -Text $match.Value
-                        codePoints = Get-CodePointList -Text $match.Value
-                        snippet = ConvertTo-VisibleSnippet -Text $text -Index $match.Index -Length $match.Length
-                    })
+                }
+                if ($candidate.supply -and $results.Count -lt $maxResults) {
+                    Scan-SupplyChainFile -Findings $results -Rules $supplyRules -File $child
+                }
+                if ($results.Count -gt $beforeCount) {
+                    $matchedFiles++
                 }
             }
             catch {
@@ -474,13 +1096,28 @@ function Invoke-Scanner {
         }
 
     $elapsed = ((Get-Date) - $started).TotalSeconds
+    $severitySummary = Get-EmptySeveritySummary
+    foreach ($result in $results) {
+        Add-SeverityCount -Summary $severitySummary -Severity ([string]$result.severity)
+    }
     $finalResult = @{
         ok = $true
+        tool = "Invisible Payload Scanner"
+        scanMode = $scanMode
+        scannedAt = (Get-Date).ToString("o")
         rule = $rule
+        supplyChainRules = @{
+            schemaVersion = $supplyRules.schemaVersion
+            updatedAt = $supplyRules.updatedAt
+            loadStatus = $supplyRules.loadStatus
+            loadMessage = $supplyRules.loadMessage
+            rulesets = @((ConvertTo-Array $supplyRules.rulesets) | ForEach-Object { $_.id })
+        }
         rootPath = (Resolve-Path -LiteralPath $rootPath).Path
         filters = $filters
         excludeDirs = $excludeDirs
         excludeFiles = $excludeFiles
+        summary = $severitySummary
         candidateFiles = $candidateFiles.Count
         scannedFiles = $scannedFiles
         skippedFiles = $skippedFiles
@@ -758,7 +1395,37 @@ if ($SelfTest) {
     if ($self.matchCount -lt 1) {
         throw "Self-test failed: expected at least one match."
     }
-    "Self-test passed: $($self.matchCount) match(es)."
+
+    $vscodeRoot = Join-Path $sampleRoot ".vscode"
+    $claudeRoot = Join-Path $sampleRoot ".claude"
+    $extensionRoot = Join-Path $sampleRoot ".antigravity\extensions\sample.publisher-1.0.0"
+    New-Item -ItemType Directory -Force -Path $vscodeRoot | Out-Null
+    New-Item -ItemType Directory -Force -Path $claudeRoot | Out-Null
+    New-Item -ItemType Directory -Force -Path $extensionRoot | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $vscodeRoot "tasks.json"), '{"version":"2.0.0","tasks":[{"label":"open","type":"shell","runOptions":{"runOn":"folderOpen"},"command":"powershell -NoProfile"}]}', [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText((Join-Path $claudeRoot "settings.json"), '{"hooks":{"SessionStart":[{"command":"node -e console.log(1)"}]}}', [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText((Join-Path $sampleRoot "package.json"), '{"name":"@tanstack/react-router","version":"1.169.5","optionalDependencies":{"@tanstack/setup":"github:tanstack/router#79ac49eedf774dd4b0cfa308722bc463cfe5885c"},"scripts":{"postinstall":"node -e console.log(1)"}}', [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText((Join-Path $extensionRoot "package.json"), '{"name":"sample-extension","scripts":{"prepare":"pwsh ./prepare.ps1"}}', [System.Text.Encoding]::UTF8)
+
+    $supplySelf = Invoke-Scanner -Options ([pscustomobject]@{
+        rootPath = $sampleRoot
+        filter = "*.js"
+        excludeDirs = ".git"
+        minRun = 3
+        maxFileSizeMb = 1
+        ruleId = "glassworm_variation_selectors"
+        scanMode = "supply-chain-ioc"
+        supplyNodeModulesFullScan = $false
+        customPattern = ""
+    })
+    if ($supplySelf.summary.critical -lt 1 -or $supplySelf.summary.high -lt 1) {
+        throw "Self-test failed: expected critical and high supply-chain findings."
+    }
+    $extensionContextHit = @($supplySelf.results | Where-Object { $_.pathContext -eq "editor-extension" }).Count
+    if ($extensionContextHit -lt 1) {
+        throw "Self-test failed: expected editor-extension path context."
+    }
+    "Self-test passed: invisible=$($self.matchCount), supply=$($supplySelf.matchCount) match(es)."
     exit 0
 }
 

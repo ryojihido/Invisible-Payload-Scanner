@@ -2,7 +2,7 @@
 
 ## Supported use
 
-Invisible Payload Scanner is a local screening tool. It is intended to highlight suspicious invisible Unicode sequences in source files. It is not a complete malware scanner and should not be treated as a guarantee that a project is safe.
+Invisible Payload Scanner is a local screening tool. It is intended to highlight suspicious invisible Unicode sequences, known supply-chain IOC strings, package/version candidates, and auto-run configuration in source projects. It is not a complete malware scanner and should not be treated as a guarantee that a project is safe.
 
 ## Reporting a security issue
 
@@ -31,9 +31,12 @@ In scope:
 
 Out of scope:
 
-- Missed malware that does not use the configured invisible Unicode patterns
+- Missed malware that does not use the configured invisible Unicode patterns or bundled IOC rules
 - Malicious files that are present but never matched by the selected filters
-- Full C2 fingerprinting, credential-harvesting behavior detection, and known-IoC matching
+- Full C2 fingerprinting and credential-harvesting behavior detection
+- Complete npm, pnpm, yarn, bun, PyPI, or package-registry trust verification
+- Runtime code fetched during install or build
+- Binary malware, memory-only malware, or heavily transformed variants
 - Operating system compromise outside this scanner
 - Security of projects being scanned
 
@@ -43,8 +46,19 @@ Out of scope:
 - A random local API token is generated on each startup and required for scan and stop requests.
 - API request origins are checked when the browser sends an `Origin` header.
 - Files are read, not executed.
+- Package manager commands such as `npm install`, `pnpm install`, `yarn install`, and `bun install` are not run by this scanner.
+- Bundled IOC rules are read from local files. The scanner does not fetch rule updates automatically.
+- Token-like strings in snippets are masked before display.
 - Scan results are inserted into the UI using text assignment rather than raw HTML.
 - Reparse points are skipped to avoid following junctions or symlinks.
 - Regex matching uses a timeout per file.
 - The default threshold is tuned to reduce common emoji-related false positives.
 - Request body size, custom pattern length, maximum file size, and candidate file count are capped server-side.
+
+## Supply Chain IOC Scan limits
+
+Supply Chain IOC Scan is a static pre-run check. It can flag known IOC strings, known affected package versions included in the bundled rules, VS Code folder-open tasks, Claude Code / AI agent hooks, and install-time lifecycle scripts.
+
+It does not prove that a project is clean. Package names alone are treated as prompts for review, not proof of compromise. If a critical or high finding appears, stop before installing or building the project, confirm the source, compare package versions with official advisories, and rotate credentials if the project has already been executed in an exposed environment.
+
+Lockfile matches are intentionally conservative. The initial implementation treats package-name and version proximity as a review candidate, not a confirmed malicious dependency, unless a parsed `package.json` manifest directly identifies a known affected package and version.

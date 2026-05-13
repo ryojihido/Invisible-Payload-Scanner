@@ -15,6 +15,11 @@
       --accent: #1f6feb;
       --accent-dark: #174ea6;
       --danger: #b42318;
+      --critical: #7a271a;
+      --high: #b42318;
+      --medium: #b54708;
+      --low: #175cd3;
+      --info: #475467;
       --warn-bg: #fff4d6;
       --ok: #067647;
       --mono: Consolas, "Cascadia Mono", "Yu Gothic UI", monospace;
@@ -33,11 +38,31 @@
       padding: 18px 28px;
       border-bottom: 4px solid #3b82f6;
     }
+    .title-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
     h1 {
       margin: 0;
       font-size: 22px;
       font-weight: 650;
       letter-spacing: 0;
+    }
+    .release-badge {
+      border: 1px solid rgba(255,255,255,.35);
+      border-radius: 999px;
+      padding: 4px 9px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #dbeafe;
+      background: rgba(59,130,246,.18);
+    }
+    .subtitle {
+      margin-top: 6px;
+      color: #cbd5e1;
+      font-size: 13px;
     }
     main {
       max-width: 1180px;
@@ -192,6 +217,26 @@
       font-size: 24px;
       margin-top: 4px;
     }
+    .metric.critical { border-color: #f04438; background: #fff5f3; }
+    .metric.high { border-color: #f97066; background: #fff8f6; }
+    .metric.medium { border-color: #fdb022; background: #fffbeb; }
+    .metric.low { border-color: #84caff; background: #f5fbff; }
+    .metric.info { border-color: #d0d5dd; background: #f8fafc; }
+    .badge {
+      display: inline-block;
+      min-width: 68px;
+      border-radius: 999px;
+      padding: 3px 8px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .badge.critical { background: var(--critical); }
+    .badge.high { background: var(--high); }
+    .badge.medium { background: var(--medium); }
+    .badge.low { background: var(--low); }
+    .badge.info { background: var(--info); }
     .alert {
       border: 1px solid #f2c94c;
       background: var(--warn-bg);
@@ -233,7 +278,11 @@
 </head>
 <body>
   <header>
-    <h1>Invisible Payload Scanner</h1>
+    <div class="title-row">
+      <h1>Invisible Payload Scanner</h1>
+      <span class="release-badge">v0.2 Safety Pre-Scan</span>
+    </div>
+    <div class="subtitle">不可視Unicode + npm / AIエージェント設定の実行前チェック</div>
   </header>
   <main>
     <section>
@@ -246,6 +295,15 @@
           <div class="hint">このツールは指定フォルダ配下のファイルを読み取り検索します。検索対象ファイルは実行しません。</div>
         </div>
         <div class="span-12 notice">通常はこのままスキャンできます。下の詳細設定は、対象ファイルを絞りたい時や誤検知を減らしたい時だけ変更してください。</div>
+        <div class="field span-4">
+          <label for="scanMode">スキャン種別</label>
+          <select id="scanMode">
+            <option value="full-safety-pre-scan">両方まとめて確認（おすすめ）</option>
+            <option value="invisible-unicode">不可視Unicodeだけ確認</option>
+            <option value="supply-chain-ioc">npm / AIエージェント設定だけ確認</option>
+          </select>
+          <div class="hint">Safety Pre-Scanは、不可視Unicodeに加えて既知IoCや自動実行設定も確認します。</div>
+        </div>
         <div class="field span-4">
           <label for="filter">ファイル名フィルタ</label>
           <input id="filter" type="text" value="*.js;*.ts;*.mjs;*.cjs;*.jsx;*.tsx;*.json;*.ps1;*.cmd;*.bat;*.py;*.go;*.rs;*.java;*.cs;*.php;*.rb;*.sh;*.yml;*.yaml;*.toml;*.md">
@@ -270,7 +328,7 @@
         </div>
         <div class="field span-6">
           <label for="excludeDirs">除外ディレクトリ名</label>
-          <input id="excludeDirs" type="text" value=".git">
+          <input id="excludeDirs" type="text" value=".git;dist;build;coverage;.cache;.next;.nuxt;out;.tmp;temp">
           <div class="hint">`;` 区切り。速度優先なら `node_modules;dist;build` などを追加。</div>
         </div>
         <div class="field span-3">
@@ -283,6 +341,13 @@
           <input id="maxFileSizeMb" type="number" min="1" max="100" value="20">
           <div class="hint">公開版では安全のため100MB以下に制限しています。</div>
         </div>
+        <div class="field span-12">
+          <label>
+            <input id="supplyNodeModulesFullScan" type="checkbox" style="width: auto; margin-right: 6px;">
+            node_modules 全体も詳しく確認する
+          </label>
+          <div class="hint">通常はオフのままで、node_modules内は package.json だけ確認します。オンにすると時間がかかります。</div>
+        </div>
         <div id="customPatternWrap" class="field span-12 hidden">
           <label for="customPattern">カスタム正規表現</label>
           <textarea id="customPattern" spellcheck="false">([\uFE00-\uFE0F]|\uDB40[\uDD00-\uDDEF]){3,}</textarea>
@@ -294,7 +359,8 @@
         <button id="stopButton" type="button">サーバ停止</button>
         <div id="status" class="status"></div>
       </div>
-      <div class="hint">長いスキャンを中止したい場合は、起動したPowerShellウィンドウを閉じてください。結果JSONやスクリーンショットを共有する時は、ローカルパスやユーザー名が含まれていないか確認してください。</div>
+      <div class="hint">結果JSONは、あとで見返す、詳しい人に相談する、GitHub issueやSecurity Advisoryを確認する時の控えとして使えます。共有や公開の前に、ローカルパス、ユーザー名、プロジェクト名が含まれていないか確認してください。</div>
+      <div class="hint">長いスキャンを中止したい場合は、起動したPowerShellウィンドウを閉じてください。</div>
       <div id="progressWrap" class="progress-wrap">
         <div class="progress-top">
           <span id="progressPhase">待機中</span>
@@ -317,9 +383,10 @@
           <tr>
             <th style="width: 34%">ファイル</th>
             <th style="width: 8%">位置</th>
-            <th style="width: 10%">長さ</th>
-            <th style="width: 20%">コードポイント</th>
-            <th>周辺表示</th>
+            <th style="width: 10%">重要度</th>
+            <th style="width: 18%">カテゴリ</th>
+            <th style="width: 18%">検出語</th>
+            <th>説明</th>
           </tr>
         </thead>
         <tbody id="resultsBody"></tbody>
@@ -343,13 +410,15 @@
     $("scanButton").addEventListener("click", async () => {
       const payload = {
         rootPath: normalizePastedPath($("rootPath").value),
+        scanMode: $("scanMode").value,
         filter: $("filter").value.trim(),
         ruleId: $("ruleId").value,
         minRun: Number($("minRun").value || 8),
         excludeDirs: $("excludeDirs").value.trim(),
         excludeFiles: $("excludeFiles").value.trim(),
         maxFileSizeMb: Number($("maxFileSizeMb").value || 20),
-        customPattern: $("customPattern").value
+        customPattern: $("customPattern").value,
+        supplyNodeModulesFullScan: $("supplyNodeModulesFullScan").checked
       };
       if (!payload.rootPath) {
         $("status").textContent = "対象フォルダを入力してください。";
@@ -378,7 +447,9 @@
         showProgress({ phase: "done", percent: 100, currentPath: "", scannedFiles: data.scannedFiles, candidateFiles: data.candidateFiles, matchCount: data.matchCount });
         $("status").textContent = data.matchCount > 0 ? "検出があります。詳細を確認してください。" : "検出はありませんでした。";
       } catch (error) {
-        $("status").textContent = "エラー: " + error.message;
+        const message = friendlyErrorMessage(error.message);
+        showProgress({ phase: "error", percent: 100, currentPath: message, scannedFiles: 0, candidateFiles: 0, matchCount: 0 });
+        $("status").textContent = "エラー: " + message;
       } finally {
         $("scanButton").disabled = false;
         $("stopButton").disabled = false;
@@ -412,14 +483,23 @@
       $("errorAlert").style.display = data.errors.length ? "block" : "none";
       $("errorAlert").textContent = data.errors.length ? `読み取りエラー ${data.errors.length} 件。一部の保護フォルダまたは壊れたファイルはスキップされています。` : "";
       $("resultGuide").textContent = getResultGuide(data);
+      if (data.supplyChainRules && data.supplyChainRules.loadStatus === "fallback") {
+        $("errorAlert").style.display = "block";
+        $("errorAlert").textContent = ($("errorAlert").textContent ? $("errorAlert").textContent + " " : "") + "同梱IOCルールを読めなかったため、簡易ルールだけで確認しています。";
+      }
 
       const verdict = data.matchCount > 0
         ? `<span class="danger">検出あり</span>`
         : `<span class="ok">検出なし</span>`;
+      const summary = data.summary || {};
       $("summary").innerHTML = [
         metric("判定", verdict),
+        metric("Critical", summary.critical || 0, "critical"),
+        metric("High", summary.high || 0, "high"),
+        metric("Medium", summary.medium || 0, "medium"),
+        metric("Low", summary.low || 0, "low"),
+        metric("Info", summary.info || 0, "info"),
         metric("検出件数", data.matchCount),
-        metric("検出ファイル", data.matchedFiles),
         metric("走査ファイル", data.scannedFiles),
         metric("秒", data.elapsedSeconds)
       ].join("");
@@ -431,28 +511,65 @@
         tr.innerHTML = `
           <td class="mono"></td>
           <td class="mono"></td>
+          <td></td>
+          <td></td>
           <td class="mono"></td>
-          <td class="mono"></td>
-          <td class="mono"></td>
+          <td></td>
         `;
         tr.children[0].textContent = row.path;
-        tr.children[1].textContent = `${row.line}:${row.column}`;
-        tr.children[2].textContent = row.runLength;
-        tr.children[3].textContent = row.codePoints;
-        tr.children[4].textContent = row.snippet;
+        tr.children[1].textContent = row.line ? `${row.line}:${row.column || 1}` : "-";
+        const badge = document.createElement("span");
+        badge.className = `badge ${row.severity || "info"}`;
+        badge.textContent = (row.severity || "info").toUpperCase();
+        tr.children[2].appendChild(badge);
+        tr.children[3].textContent = row.category || "";
+        tr.children[4].textContent = row.match || "";
+        const detail = [
+          getPathContextText(row.pathContext),
+          row.message || "",
+          row.recommendation || "",
+          row.snippet ? `周辺: ${row.snippet}` : ""
+        ].filter(Boolean).join("\n");
+        tr.children[5].textContent = detail;
         body.appendChild(tr);
       }
     }
 
+    function getPathContextText(context) {
+      if (context === "editor-extension") {
+        return "文脈: エディタ/AIツールの拡張機能フォルダ内です。正規の拡張機能が持つ開発用scriptの可能性があります。未知のGitHubプロジェクト直下の検出とは分けて確認してください。";
+      }
+      if (context === "node_modules") {
+        return "文脈: node_modules内です。展開済み依存パッケージとして確認してください。";
+      }
+      if (context === "documentation") {
+        return "文脈: README/docsなど説明文寄りです。実行経路に乗るか確認してください。";
+      }
+      if (context === "scanner-rule-file") {
+        return "文脈: このスキャナの同梱ルールファイル内です。IoC文字列が含まれるのは通常です。";
+      }
+      return "";
+    }
+
     function getResultGuide(data) {
       if (!data.matchCount) {
-        return "検出はありませんでした。ただし、不可視文字以外のマルウェアや外部ダウンロード型の挙動まで安全を保証するものではありません。";
+        return "検出はありませんでした。ただし、この結果は完全な安全保証ではありません。未知のマルウェア、外部取得コード、すべての悪性パッケージまでは検出できません。";
       }
-      const executableHit = data.results.some((row) => /\.(js|ts|mjs|cjs|jsx|tsx|ps1|cmd|bat|sh|py|json|ya?ml|toml)$/i.test(row.path || ""));
-      if (executableHit) {
-        return "実行・ビルドに関係しやすいファイルで検出があります。しきい値を16に上げて再スキャンし、該当パッケージの実行やインストールは確認が終わるまで止めてください。";
+      const summary = data.summary || {};
+      const hasEditorExtensionHits = (data.results || []).some((row) => row.pathContext === "editor-extension");
+      const contextNote = hasEditorExtensionHits
+        ? " なお、エディタ/AIツールの拡張機能フォルダ内の検出は、正規拡張機能のscriptである可能性があります。拡張機能名、発行元、意図して入れたものかを確認し、未知のGitHubプロジェクト直下の検出とは分けて判断してください。"
+        : "";
+      if ((summary.critical || 0) > 0) {
+        return "Criticalがあります。このプロジェクトは実行しないでください。簡易対策: 1. npm install / ビルドを止める 2. VS CodeはRestricted Modeで開くか、まだ開かない 3. AIエージェントに自動修正させない 4. 入手元と公式アドバイザリを確認 5. 既に実行済みならGitHub/npm/APIキー/SSH鍵などのローテーションを検討してください。Node.jsプロジェクトでは、追加防御としてpnpmのminimumReleaseAge、blockExoticSubdeps、allowBuildsも検討できます。" + contextNote;
       }
-      return "検出があります。READMEやMarkdownなど説明文ファイルだけの場合は誤検知の可能性があります。除外ファイル名を既定値に戻すか、実行ファイル系だけに絞って再スキャンしてください。";
+      if ((summary.high || 0) > 0) {
+        return "Highがあります。簡易対策: 該当ファイルを開いて内容を確認し、意味が分からないコマンドやinstall scriptがある場合は実行しないでください。VS CodeはRestricted Mode、AIエージェントは自動実行なしで扱うのが安全です。Node.jsプロジェクトでは、pnpmのminimumReleaseAgeやinstall scriptの許可制も追加防御になります。" + contextNote;
+      }
+      if ((summary.medium || 0) > 0) {
+        return "Mediumがあります。簡易対策: パッケージ名、バージョン、lockfileの該当箇所を確認してください。名前だけでは悪性と断定できません。不明な場合は依存関係を更新・インストールせず、一旦保留してください。" + contextNote;
+      }
+      return "検出があります。Info/Lowは注意喚起寄りです。簡易対策: 実行される場所にあるか、説明文やルールファイル内の記載かを確認してください。判断できない場合は実行前に詳しい人へ結果JSONを見せてください。" + contextNote;
     }
 
     function normalizePastedPath(value) {
@@ -463,6 +580,14 @@
         if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
           text = text.slice(1, -1).trim();
         }
+      }
+      return text;
+    }
+
+    function friendlyErrorMessage(message) {
+      const text = message || "";
+      if (/Too many candidate files/i.test(text)) {
+        return "候補ファイルが上限を超えたため停止しました。ユーザーフォルダ全体や大きな親フォルダではなく、GitHubから展開したプロジェクトフォルダ単位でスキャンしてください。必要なら除外ディレクトリに node_modules;AppData;Windows;Program Files などを追加してください。";
       }
       return text;
     }
@@ -501,18 +626,21 @@
       const phaseText = event.phase === "enumerate" ? "候補ファイルを数えています"
         : event.phase === "scan" ? "不可視文字を検索しています"
         : event.phase === "done" ? "完了"
+        : event.phase === "error" ? "停止しました"
         : "動作中";
       const percent = Number(event.percent || 0);
       $("progressPhase").textContent = phaseText;
-      $("progressPercent").textContent = event.phase === "enumerate" ? "準備中" : `${percent}%`;
+      $("progressPercent").textContent = event.phase === "enumerate" ? "準備中"
+        : event.phase === "error" ? "エラー"
+        : `${percent}%`;
       $("progressBar").classList.toggle("indeterminate", event.phase === "enumerate");
       $("progressBar").style.width = event.phase === "enumerate" ? "" : `${Math.max(0, Math.min(100, percent))}%`;
       const counts = `候補 ${event.candidateFiles || 0} 件 / 走査 ${event.scannedFiles || 0} 件 / 検出 ${event.matchCount || 0} 件`;
       $("progressDetail").textContent = event.currentPath ? `${counts} / ${event.currentPath}` : counts;
     }
 
-    function metric(label, value) {
-      return `<div class="metric"><span>${label}</span><strong>${value}</strong></div>`;
+    function metric(label, value, level = "") {
+      return `<div class="metric ${level}"><span>${label}</span><strong>${value}</strong></div>`;
     }
   </script>
 </body>

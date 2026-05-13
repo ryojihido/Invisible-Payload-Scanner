@@ -4,17 +4,41 @@
 
 GitHubから落としたプロジェクトを、そのまま動かす前に確認するための一次スクリーニングツールです。外部サーバには送信せず、Windows上でローカルに動作します。
 
-現在は、GlassWorm系で報告されている異体字セレクタと異体字セレクタ補助を主な対象にしています。検索ルールは変更できるので、今後ほかの不可視Unicode列にも拡張できます。
+現在は、GlassWorm系で報告されている異体字セレクタと異体字セレクタ補助に加えて、npmサプライチェーン攻撃やAIコーディング環境に関連する既知の痕跡も簡易確認できます。
 
-このツールは「感染判定器」ではなく、疑わしい不可視文字列を見つける検査補助ツールです。検出された場合は、ファイル種別、該当箇所、実行経路、入手元を確認してください。
+このツールは「感染判定器」ではなく、知らないプロジェクトを実行する前に一度止まるための検査補助ツールです。検出された場合は、ファイル種別、該当箇所、実行経路、入手元を確認してください。
+
+このツールはウイルス対策ソフトの代替ではありません。ESETやWindows Defenderなどの常駐保護と併用し、GitHubから入手したプロジェクトを実行・インストール・AIエージェントに触らせる前の一次確認として使うものです。
 
 ![Invisible Payload Scanner preview](docs/preview.png)
 
 英語版が必要な場合は [README.en.md](README.en.md) を参照してください。
 
+安全設計と報告範囲は [SECURITY.ja.md](SECURITY.ja.md) にまとめています。英語版は [SECURITY.md](SECURITY.md) です。
+
+## リリースの種類
+
+Invisible Payload Scannerには、現在大きく2つの使い方があります。
+
+- `v0.1.0 Classic`: 不可視Unicodeの確認に絞った最初のリリース
+- `v0.2.0 Safety Pre-Scan`: Classicに加えて、npmサプライチェーンIoCやAIコーディング環境の自動実行設定も確認するリリース
+
+既存の `v0.1.0` はそのまま残し、リリース済みzipは差し替えません。新しい確認範囲が必要な場合は `v0.2.0` 以降を使ってください。
+
+## どちらを使えばいい？
+
+通常は最新版の **Safety Pre-Scan** を使ってください。
+
+- **Classic: Invisible Unicode Scan**
+  不可視Unicode、GlassWorm系、Trojan Source系の確認に絞った軽量モードです。
+- **Safety Pre-Scan**
+  Classicの内容に加えて、npmサプライチェーンIoC、VS Code自動実行設定、Claude Code / AIエージェントhooks、install scriptsを確認します。
+
+過去リリースの `v0.1.0` は、不可視Unicode専用のClassic版として残します。リリース済みzipは差し替えません。
+
 ## ダウンロードして使う
 
-GitHubのReleasesから `InvisiblePayloadScanner-v0.1.0.zip` をダウンロードして展開してください。
+GitHubのReleasesから最新版の `InvisiblePayloadScanner-*.zip` をダウンロードして展開してください。
 
 展開したフォルダ内の `Start-InvisiblePayloadScanner.cmd` をダブルクリックすると、ローカルWeb UIが起動します。
 
@@ -46,6 +70,59 @@ GlassWorm系の情報を追う中で既存の検知ツールはCLI型が多か�
 フォルダパスは、エクスプローラーで対象フォルダを開き、アドレスバーの文字列をコピーして貼り付けるのが簡単です。Windowsの「パスのコピー」で `"C:\path\to\project"` のように引用符が付いても、そのまま貼り付けられます。
 
 長いスキャンを途中で止めたい場合は、起動したPowerShellウィンドウを閉じてください。
+
+## スキャン範囲の目安
+
+このツールは、GitHubから展開したプロジェクトフォルダ単位で使うことを想定しています。ユーザーフォルダ全体や大きな親フォルダを指定すると、候補ファイルが多すぎて上限に達することがあります。
+
+候補ファイルが多すぎる場合は、次のように絞ってください。
+
+- GitHubから展開した対象プロジェクトのフォルダだけを指定する
+- 除外ディレクトリに `node_modules;AppData;Windows;Program Files` などを追加する
+- まずは `maxFileSizeMb` を小さくし、必要なファイル種別だけに絞る
+- PC全体のウイルス検査は、ESETやWindows Defenderなどの常駐保護・フルスキャンに任せる
+
+## 結果JSONの使い方
+
+`結果をJSON保存` は、検出結果をあとで確認したり、詳しい人へ相談したりするための控えです。
+
+使い道の例:
+
+- 検出が出た時に、該当ファイル、行番号、検出語、重要度を保存する
+- GitHub issue、Security Advisory、npmの公式情報と照合する時のメモにする
+- 詳しい人やチームメンバーへ相談する時に、スクリーンショットより正確な情報として渡す
+- すでに実行してしまった場合に、どのプロジェクト・どの痕跡を見たか記録する
+
+JSONにはローカルパス、ユーザー名、プロジェクト名が含まれることがあります。公開issueやSNSに貼る前に、不要なパスや名前が含まれていないか確認してください。
+
+## npm系プロジェクトでの追加防御
+
+このスキャナで検出が出た場合や、知らないNode.jsプロジェクトを扱う場合は、実行前の追加防御として次のような設定も検討できます。
+
+これはこのツールが自動で行う処理ではありません。既存プロジェクトのパッケージマネージャを変えると挙動が変わることがあるため、必要に応じて詳しい人やAIエージェントに内容を確認させてください。
+
+pnpmを使う場合の例:
+
+```yaml
+# pnpm-workspace.yaml
+minimumReleaseAge: 4320
+minimumReleaseAgeStrict: true
+blockExoticSubdeps: true
+```
+
+- `minimumReleaseAge` は、公開直後の新しいパッケージをすぐに入れないための待機時間です。`4320` は3日を意味します。
+- `minimumReleaseAgeStrict: true` は、待機時間を満たす候補がない場合に解決を失敗させる設定です。
+- `blockExoticSubdeps: true` は、推移的依存がgitや直接tarball URLなどからコードを取ってくるのを防ぐための設定です。
+- install scriptを許可制にしたい場合は、pnpm 11系では `allowBuilds` や `pnpm approve-builds` を確認します。
+
+AIエージェントに依頼する場合の例:
+
+```text
+このリポジトリの依存関係を安全側に見直してください。
+可能ならpnpmに移行し、pnpm-workspace.yamlで minimumReleaseAge: 4320、minimumReleaseAgeStrict: true、blockExoticSubdeps: true を設定してください。
+install/build/testで動作確認し、install scriptはallowBuildsまたはpnpm approve-buildsで必要なものだけ許可してください。
+既存の挙動が変わる場合は、変更前に説明してください。
+```
 
 ## 既定のGlassWorm系検出式
 
@@ -107,6 +184,35 @@ Web UIの `検索ルール` で `カスタム正規表現` を選ぶと、今後
 ```
 
 これはゼロ幅スペース、方向制御、BOMなどの不可視制御文字を探すための例です。
+
+## Supply Chain IOC Scan
+
+Safety Pre-Scanでは、不可視Unicodeとは別に、既知のnpmサプライチェーン攻撃やAIコーディング環境の自動実行設定に関係する痕跡を確認します。
+
+確認対象の例:
+
+- `package.json`
+- `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`
+- `.vscode/tasks.json`
+- `.claude/settings.json`
+- `.github/workflows/*.yml`
+- `.npmrc`, `.env*`
+- `node_modules/**/package.json`
+
+初期ルールは `rules/ioc-rules.json` に同梱しています。2026年5月のTanStack npm supply-chain compromiseで公開されたIoCを中心に、悪性git ref、`@tanstack/setup`、`router_init.js`、`tanstack_runner.js`、`filev2.getsession.org`、`seed*.getsession.org`、既知の影響バージョン候補を静的に照合します。
+
+この機能は、パッケージ名だけで悪性と断定しません。`@tanstack/` のような名前空間一致は注意表示であり、危険度が上がるのは既知の悪性バージョン、既知IoC文字列、自動実行設定、install scriptの危険語などが重なった場合です。
+
+`.env` や `.npmrc` は秘密情報を含む可能性があるため、検出結果ではトークンらしい文字列をマスクします。JSON結果を公開する場合も、ローカルパス、ユーザー名、プロジェクト名が含まれていないか確認してください。
+
+検出が出たときの簡易対策:
+
+1. `Critical` がある場合は、そのプロジェクトを実行しないでください。
+2. `npm install`、ビルド、起動、AIエージェントによる自動修正を止めます。
+3. VS Codeで開く場合はRestricted Modeを使い、`.vscode/tasks.json` を確認します。
+4. `.claude/settings.json` などのhooksがある場合は、AIエージェントで開く前に内容を確認します。
+5. package名だけの検出は悪性確定ではありません。バージョン、lockfile、公式アドバイザリを確認してください。
+6. 既に実行済みでCritical/Highが出た場合は、GitHub token、npm token、APIキー、SSH鍵などのローテーションを検討してください。
 
 ## 精度と安全性の設計
 
@@ -170,6 +276,7 @@ Web UI自体の安全性は、次の構造で高めています。
 - `README.md`
 - `CHANGELOG.md`
 - `docs/` 配下のMarkdown
+- `.vscode/extensions/` や `.antigravity/extensions/` など、エディタ/AIツールの拡張機能フォルダ内の既存script
 - 絵文字、アクセシビリティ記号、バッジ、リンク周辺の `U+FE0F`
 - `U+FE0F` が数個だけ連続している説明文
 
@@ -192,3 +299,5 @@ U+FE0F U+FE0F U+FE0F U+FE0F
 ```
 
 これはREADME内の絵文字・アクセシビリティ記号に反応している可能性が高く、感染確定ではありません。実行される `.js` や `.ts` に長い不可視文字列が出る場合とは扱いを分けてください。
+
+エディタ拡張機能フォルダ内の `package.json` や `tasks.json` に反応することもあります。たとえば `.vscode/extensions/` や `.antigravity/extensions/` 配下は、正規の拡張機能がビルド用・開発用scriptを持っている場合があります。この場合は「危険確定」ではなく、拡張機能名、発行元、バージョン、意図して入れたものかを確認してください。身に覚えのない拡張機能、最近急に入った拡張機能、不審な発行元の場合は、無効化、削除、再インストール、公式マーケットプレイス情報の確認を検討してください。
