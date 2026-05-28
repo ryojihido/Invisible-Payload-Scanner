@@ -4,7 +4,7 @@ Invisible Payload Scanner started as a tool for my own use, then grew into a Win
 
 It is meant for checking projects downloaded from GitHub before running them. It runs locally on Windows and does not upload scanned file contents to an external server.
 
-The current release can check for GlassWorm-style variation selectors and supplementary variation selectors, plus known npm supply-chain IOC traces and auto-run settings related to AI coding environments.
+The current release can check for GlassWorm-style variation selectors and supplementary variation selectors, plus known npm supply-chain IOC traces, editor/AI-agent auto-run settings, GitHub Actions workflow risk hints, and Git hook candidates.
 
 This is not a malware verdict engine. It is a first-pass screening tool. If it reports a finding, review the file type, surrounding code, execution path, and package origin.
 
@@ -14,21 +14,24 @@ See [SECURITY.md](SECURITY.md) for the security policy and reporting scope. A Ja
 
 ## Release Types
 
-Invisible Payload Scanner currently has two main usage paths:
+Invisible Payload Scanner currently has three main usage paths:
 
 - `v0.1.0 Classic`: the first release, focused on invisible Unicode screening
 - `v0.2.0 Safety Pre-Scan`: adds npm supply-chain IOC checks and AI coding environment auto-run checks on top of Classic
+- `v0.3.0 Contagious Interview Pre-Scan`: adds VS Code/Cursor folder-open task checks, npm install lifecycle correlation, GitHub Actions workflow risk hints, Git hook checks, and local safe-pattern priority lowering
 
-Existing `v0.1.0` release assets are kept as-is and will not be replaced. Use `v0.2.0` or later when you need the broader pre-run safety checks.
+Existing `v0.1.0` release assets are kept as-is and will not be replaced. Use `v0.3.0` or later when you need the broader pre-run safety checks.
 
 ## Which Should I Use?
 
-In most cases, use the latest **Safety Pre-Scan** release.
+In most cases, use the latest **v0.3.0 Contagious Interview Pre-Scan** release.
 
 - **Classic: Invisible Unicode Scan**
   A lightweight mode focused on invisible Unicode, GlassWorm-style patterns, and Trojan Source-style checks.
-- **Safety Pre-Scan**
-  Includes Classic checks plus npm supply-chain IOCs, VS Code auto-run tasks, Claude Code / AI agent hooks, and install scripts.
+- **v0.3.0 Contagious Interview Pre-Scan**
+  Use this for normal checks. It includes invisible Unicode checks plus npm install-time scripts, VS Code/Cursor auto-run tasks, AI agent settings, Git hook candidates, GitHub Actions workflow risk hints, and local safe-pattern priority lowering.
+- **v0.2.0 Safety Pre-Scan**
+  Includes Classic checks plus npm supply-chain IOCs, VS Code/Cursor auto-run tasks, Claude Code / AI agent hooks, install scripts, and Git hook candidates.
 
 ## Why This Exists
 
@@ -57,6 +60,10 @@ The easiest way to enter a folder path is to open the target folder in File Expl
 
 To interrupt a long scan, close the PowerShell window that launched the scanner.
 
+The `.cmd` launcher uses `-ExecutionPolicy Bypass` only to run the bundled local `Start-InvisiblePayloadScanner.ps1` from the extracted release folder. Do not treat that as a general rule for unknown `.cmd` or `.ps1` files.
+
+The `サーバ停止` button stops the local server while it is idle. During a long scan, the response can be delayed; closing the PowerShell window still stops the tool.
+
 ## JSON Export
 
 `結果をJSON保存` saves the scan result as a local JSON file. It is useful for later review, asking a more technical person for help, or comparing the finding with GitHub issues, security advisories, or npm package information.
@@ -68,6 +75,8 @@ Possible uses:
 - Record what was found if you already ran the project and need to investigate.
 
 The JSON may include local paths, user names, and project names. Before posting it to a public issue, advisory, or social media, check whether it contains information you do not want to publish.
+
+It is also reasonable to ask an AI system to help triage the scan log, for example: "Is this a finding I should stop for before running the project, is it likely a false positive, and what should I check next?" If the AI is not a local LLM, review the JSON first and remove local paths, user names, project names, snippets, or any unmasked secrets before sharing it.
 
 ## Extra Defense for npm-style Projects
 
@@ -102,7 +111,15 @@ blockExoticSubdeps: true
 
 ## Default Exclusions
 
-By default, Markdown files are excluded:
+By default, common generated folders and the scanner's own self-test folder are excluded:
+
+```text
+.git;dist;build;coverage;.cache;.next;.nuxt;out;.tmp;temp;_selftest;_compound_selftest;.edge-preview-profile
+```
+
+`_selftest` and `_compound_selftest` are intentionally suspicious fixture folders created by the scanner self-test. They are excluded by default so a scan of this scanner's own development folder does not confuse test samples with a normal project finding.
+
+Markdown files are also excluded:
 
 ```text
 README.md;*.md
@@ -114,39 +131,53 @@ Markdown documentation often contains emoji-related `U+FE0F` characters, and REA
 
 - The local server binds to `127.0.0.1`.
 - A random local API token is generated on each startup and required for scan and stop requests.
-- API request origins are checked to reduce cross-site localhost request abuse.
+- The Host header is limited to `127.0.0.1:<port>` or `localhost:<port>`.
+- API request origins are required and checked to reduce cross-site localhost request abuse.
+- Browser safety headers such as Content-Security-Policy are returned.
 - Scanned file contents are not uploaded.
 - External APIs are not called.
 - Files are read, not executed.
 - Package manager commands such as `npm install`, `pnpm install`, `yarn install`, and `bun install` are not run.
 - Bundled IOC rules are read from local files and are not fetched automatically.
-- Token-like strings in snippets are masked before display.
+- `.env` / `.npmrc` snippets are hidden, and token-like strings in other snippets are masked before display.
 - JSON export is created only when the user clicks the export button.
 - Reparse points such as symlinks and junctions are skipped.
 - Regex matching uses a timeout per file.
 - Request size, custom regex length, file size, and candidate file count are capped.
 
-This design does not guarantee detection of binary malware, externally downloaded installers, non-Unicode loaders, compromised dependencies, or every malicious execution path.
+This design does not protect against a malicious process or browser extension already running under the same Windows user account. It also does not guarantee detection of binary malware, externally downloaded installers, non-Unicode loaders, compromised dependencies, or every malicious execution path.
 
 It also does not attempt full C2 fingerprinting, credential-harvesting behavior detection, complete package-registry trust verification, or every malicious execution path. The focus is local first-pass screening before running unfamiliar projects.
 
 ## Supply Chain IOC Scan
 
-Safety Pre-Scan checks for known npm supply-chain IOC strings and auto-run configuration in addition to invisible Unicode patterns.
+Safety Pre-Scan checks for known npm supply-chain IOC strings, install-time scripts, editor/AI-agent auto-run settings, GitHub Actions workflow risk hints, and Git hook candidates in addition to invisible Unicode patterns.
 
 Examples of checked files:
 
 - `package.json`
 - `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`
 - `.vscode/tasks.json`
+- `.cursor/tasks.json`
 - `.claude/settings.json`
+- `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/*`, `.windsurfrules`, `.github/copilot-instructions.md`
 - `.github/workflows/*.yml`
+- `.husky/*`, `.githooks/*`
 - `.npmrc`, `.env*`
 - `node_modules/**/package.json`
 
 Initial rules are bundled in `rules/ioc-rules.json`. They focus on public TanStack npm supply-chain compromise IOCs from May 2026, including malicious git refs, `@tanstack/setup`, `router_init.js`, `tanstack_runner.js`, `filev2.getsession.org`, `seed*.getsession.org`, and known affected version candidates.
 
+v0.3 supplemental rules are separated under `rules/v0.3/` so they are easy to distinguish from the v0.2 base rules.
+
+- `rules/v0.3/contagious-interview-rules.json`: heuristics for fake recruiter repositories, `folderOpen`, download-and-execute stagers, short links, Gist/Drive/Vercel-style staging, install lifecycle scripts, GitHub Actions workflow risk hints, and Git hook candidates
+- `rules/v0.3/safe-patterns.json`: local patterns such as `husky install`, `lint-staged`, and `npm run build` that lower low-risk findings without suppressing dangerous indicators
+
+Safe patterns never override remote download-and-execute, shell, encoded payload, or credential-harvesting indicators.
+
 Package names alone are not treated as proof of compromise. Namespace matches such as `@tanstack/` are prompts for review. Stronger warnings require known affected versions, known IOC strings, auto-run settings, or install-script risk terms.
+
+v0.3 also adds compound findings. For example, if `.vscode/tasks.json` or `.cursor/tasks.json` runs `npm install`, `npm i`, `pnpm i`, `yarn install`, or `bun i` on `folderOpen` and the same project has `prepare` / `postinstall` lifecycle scripts, the scanner reports the combination separately.
 
 ## After a Finding
 
@@ -167,5 +198,7 @@ Recommended triage:
 2. Exclude `README.md;*.md` and scan executable file types.
 3. If long invisible runs appear in executed files, stop using the package or repository until reviewed.
 4. If you have not run `npm install`, build scripts, or project commands yet, do not run them until the source is checked.
-5. Check package origin, recent commits, install scripts, and official advisories.
-6. If a `Critical` or `High` finding appears after you already ran the project, consider rotating GitHub tokens, npm tokens, API keys, SSH keys, and other credentials that may have been exposed.
+5. Check package origin, recent commits, install scripts, editor tasks, Git hooks, and official advisories.
+6. If `.husky/` or `.githooks/` is reported, review it before running git actions such as commit, checkout, merge, or push.
+7. If a `Critical` or `High` finding appears after you already ran the project, consider rotating GitHub tokens, npm tokens, API keys, SSH keys, and other credentials that may have been exposed.
+8. If you are unsure, ask a technical person or an AI system to review the JSON. For non-local AI services, remove local paths, user names, project names, snippets, and secrets first.

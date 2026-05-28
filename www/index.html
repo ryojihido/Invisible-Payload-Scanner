@@ -246,18 +246,31 @@
       color: #5f4700;
       display: none;
     }
+    .results-table-wrap {
+      width: 100%;
+      overflow-x: auto;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 14px;
       table-layout: fixed;
     }
+    .results-table {
+      min-width: 1080px;
+    }
+    .col-file { width: 25%; }
+    .col-location { width: 7%; }
+    .col-severity { width: 8%; }
+    .col-category { width: 14%; }
+    .col-match { width: 17%; }
+    .col-detail { width: 29%; }
     th, td {
       border-bottom: 1px solid var(--line);
       padding: 9px 8px;
       text-align: left;
       vertical-align: top;
-      word-break: break-word;
+      overflow-wrap: anywhere;
     }
     th {
       background: #f2f5f9;
@@ -265,6 +278,10 @@
       color: #344054;
     }
     .mono { font-family: var(--mono); font-size: 13px; }
+    .result-detail {
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
     .danger { color: var(--danger); font-weight: 700; }
     .ok { color: var(--ok); font-weight: 700; }
     .hidden { display: none; }
@@ -280,9 +297,9 @@
   <header>
     <div class="title-row">
       <h1>Invisible Payload Scanner</h1>
-      <span class="release-badge">v0.2 Safety Pre-Scan</span>
+      <span class="release-badge">v0.3 Contagious Interview Pre-Scan</span>
     </div>
-    <div class="subtitle">不可視Unicode + npm / AIエージェント設定の実行前チェック</div>
+    <div class="subtitle">不可視Unicode + npm / エディタ自動実行 / Git hook の実行前チェック</div>
   </header>
   <main>
     <section>
@@ -298,11 +315,11 @@
         <div class="field span-4">
           <label for="scanMode">スキャン種別</label>
           <select id="scanMode">
-            <option value="full-safety-pre-scan">両方まとめて確認（おすすめ）</option>
+            <option value="full-safety-pre-scan">両方まとめて確認（v0.3おすすめ）</option>
             <option value="invisible-unicode">不可視Unicodeだけ確認</option>
-            <option value="supply-chain-ioc">npm / AIエージェント設定だけ確認</option>
+            <option value="supply-chain-ioc">npm / エディタ / AIエージェント設定だけ確認</option>
           </select>
-          <div class="hint">Safety Pre-Scanは、不可視Unicodeに加えて既知IoCや自動実行設定も確認します。</div>
+          <div class="hint">Safety Pre-Scanは、不可視Unicodeに加えて既知IoC、folderOpen、install script、Git hookも確認します。</div>
         </div>
         <div class="field span-4">
           <label for="filter">ファイル名フィルタ</label>
@@ -328,7 +345,7 @@
         </div>
         <div class="field span-6">
           <label for="excludeDirs">除外ディレクトリ名</label>
-          <input id="excludeDirs" type="text" value=".git;dist;build;coverage;.cache;.next;.nuxt;out;.tmp;temp">
+          <input id="excludeDirs" type="text" value=".git;dist;build;coverage;.cache;.next;.nuxt;out;.tmp;temp;_selftest;_compound_selftest;.edge-preview-profile">
           <div class="hint">`;` 区切り。速度優先なら `node_modules;dist;build` などを追加。</div>
         </div>
         <div class="field span-3">
@@ -378,19 +395,29 @@
       <div id="resultGuide" class="notice"></div>
       <div id="limitAlert" class="alert">結果が多いため、先頭5000件で表示を止めています。対象フォルダまたはフィルタを絞って再実行してください。</div>
       <div id="errorAlert" class="alert"></div>
-      <table>
-        <thead>
-          <tr>
-            <th style="width: 34%">ファイル</th>
-            <th style="width: 8%">位置</th>
-            <th style="width: 10%">重要度</th>
-            <th style="width: 18%">カテゴリ</th>
-            <th style="width: 18%">検出語</th>
-            <th>説明</th>
-          </tr>
-        </thead>
-        <tbody id="resultsBody"></tbody>
-      </table>
+      <div class="results-table-wrap">
+        <table class="results-table">
+          <colgroup>
+            <col class="col-file">
+            <col class="col-location">
+            <col class="col-severity">
+            <col class="col-category">
+            <col class="col-match">
+            <col class="col-detail">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>ファイル</th>
+              <th>位置</th>
+              <th>重要度</th>
+              <th>カテゴリ</th>
+              <th>検出語</th>
+              <th>説明</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
     </section>
   </main>
 
@@ -514,13 +541,13 @@
           <td></td>
           <td></td>
           <td class="mono"></td>
-          <td></td>
+          <td class="result-detail"></td>
         `;
         tr.children[0].textContent = row.path;
         tr.children[1].textContent = row.line ? `${row.line}:${row.column || 1}` : "-";
         const badge = document.createElement("span");
         badge.className = `badge ${row.severity || "info"}`;
-        badge.textContent = (row.severity || "info").toUpperCase();
+        badge.textContent = getSeverityLabel(row.severity || "info");
         tr.children[2].appendChild(badge);
         tr.children[3].textContent = row.category || "";
         tr.children[4].textContent = row.match || "";
@@ -548,7 +575,26 @@
       if (context === "scanner-rule-file") {
         return "文脈: このスキャナの同梱ルールファイル内です。IoC文字列が含まれるのは通常です。";
       }
+      if (context === "scanner-source") {
+        return "文脈: このスキャナ本体のソース内です。検知用IoCや自己診断用文字列が含まれることがあります。";
+      }
+      if (context === "scanner-selftest") {
+        return "文脈: このスキャナのセルフテスト用フォルダ内です。検知確認用の危険サンプルです。";
+      }
+      if (context === "ai-agent-instruction") {
+        return "文脈: AIエージェント向けのプロジェクト指示ファイルです。自動実行そのものではありませんが、エージェントに作業させる前に内容を確認してください。";
+      }
       return "";
+    }
+
+    function getSeverityLabel(severity) {
+      switch ((severity || "info").toLowerCase()) {
+        case "critical": return "危険";
+        case "high": return "高リスク";
+        case "medium": return "要注意";
+        case "low": return "低";
+        default: return "参考";
+      }
     }
 
     function getResultGuide(data) {
@@ -557,19 +603,35 @@
       }
       const summary = data.summary || {};
       const hasEditorExtensionHits = (data.results || []).some((row) => row.pathContext === "editor-extension");
+      const hasAllowlistedHits = (data.results || []).some((row) => row.category === "install-script-allowlisted");
+      const hasAgentInstructionHits = (data.results || []).some((row) => row.pathContext === "ai-agent-instruction");
+      const hasScannerInternalHits = (data.results || []).some((row) =>
+        row.pathContext === "scanner-rule-file" ||
+        row.pathContext === "scanner-source" ||
+        row.pathContext === "scanner-selftest"
+      );
       const contextNote = hasEditorExtensionHits
         ? " なお、エディタ/AIツールの拡張機能フォルダ内の検出は、正規拡張機能のscriptである可能性があります。拡張機能名、発行元、意図して入れたものかを確認し、未知のGitHubプロジェクト直下の検出とは分けて判断してください。"
         : "";
+      const allowlistNote = hasAllowlistedHits
+        ? " safe-patternsに一致して参考扱いになったinstall scriptも、未知のリポジトリでは念のため内容を見てください。"
+        : "";
+      const scannerInternalNote = hasScannerInternalHits
+        ? " このスキャナ自身のルールファイル、ソース、セルフテスト内の検出は、検知用文字列が含まれるため参考扱いです。未知のプロジェクト直下の検出とは分けて見てください。"
+        : "";
+      const agentInstructionNote = hasAgentInstructionHits
+        ? " AIエージェント向け指示ファイルは実行ファイルではありませんが、エージェントに自動作業させる前の確認対象です。"
+        : "";
       if ((summary.critical || 0) > 0) {
-        return "Criticalがあります。このプロジェクトは実行しないでください。簡易対策: 1. npm install / ビルドを止める 2. VS CodeはRestricted Modeで開くか、まだ開かない 3. AIエージェントに自動修正させない 4. 入手元と公式アドバイザリを確認 5. 既に実行済みならGitHub/npm/APIキー/SSH鍵などのローテーションを検討してください。Node.jsプロジェクトでは、追加防御としてpnpmのminimumReleaseAge、blockExoticSubdeps、allowBuildsも検討できます。" + contextNote;
+        return "危険レベルがあります。このプロジェクトは実行しないでください。簡易対策: 1. npm install / ビルドを止める 2. VS CodeやCursorはRestricted Modeで開くか、まだ開かない 3. AIエージェントに自動修正させない 4. 入手元と公式アドバイザリを確認 5. 既に実行済みならGitHub/npm/APIキー/SSH鍵などのローテーションを検討してください。Node.jsプロジェクトでは、追加防御としてpnpmのminimumReleaseAge、blockExoticSubdeps、allowBuildsも検討できます。" + contextNote + allowlistNote + scannerInternalNote + agentInstructionNote;
       }
       if ((summary.high || 0) > 0) {
-        return "Highがあります。簡易対策: 該当ファイルを開いて内容を確認し、意味が分からないコマンドやinstall scriptがある場合は実行しないでください。VS CodeはRestricted Mode、AIエージェントは自動実行なしで扱うのが安全です。Node.jsプロジェクトでは、pnpmのminimumReleaseAgeやinstall scriptの許可制も追加防御になります。" + contextNote;
+        return "高リスクがあります。簡易対策: 該当ファイルを開いて内容を確認し、意味が分からないコマンドやinstall scriptがある場合は実行しないでください。VS CodeやCursorはRestricted Mode、AIエージェントは自動実行なしで扱うのが安全です。Node.jsプロジェクトでは、pnpmのminimumReleaseAgeやinstall scriptの許可制も追加防御になります。" + contextNote + allowlistNote + scannerInternalNote + agentInstructionNote;
       }
       if ((summary.medium || 0) > 0) {
-        return "Mediumがあります。簡易対策: パッケージ名、バージョン、lockfileの該当箇所を確認してください。名前だけでは悪性と断定できません。不明な場合は依存関係を更新・インストールせず、一旦保留してください。" + contextNote;
+        return "要注意があります。簡易対策: パッケージ名、バージョン、lockfile、tasks.json、package.json scriptsの該当箇所を確認してください。名前だけでは悪性と断定できません。不明な場合は依存関係を更新・インストールせず、一旦保留してください。" + contextNote + allowlistNote + scannerInternalNote + agentInstructionNote;
       }
-      return "検出があります。Info/Lowは注意喚起寄りです。簡易対策: 実行される場所にあるか、説明文やルールファイル内の記載かを確認してください。判断できない場合は実行前に詳しい人へ結果JSONを見せてください。" + contextNote;
+      return "検出があります。参考/低は注意喚起寄りです。簡易対策: 実行される場所にあるか、説明文やルールファイル内の記載かを確認してください。判断できない場合は実行前に詳しい人へ結果JSONを見せてください。" + contextNote + allowlistNote + scannerInternalNote + agentInstructionNote;
     }
 
     function normalizePastedPath(value) {
@@ -624,7 +686,7 @@
     function showProgress(event) {
       $("progressWrap").style.display = "block";
       const phaseText = event.phase === "enumerate" ? "候補ファイルを数えています"
-        : event.phase === "scan" ? "不可視文字を検索しています"
+        : event.phase === "scan" ? "ファイルを確認しています"
         : event.phase === "done" ? "完了"
         : event.phase === "error" ? "停止しました"
         : "動作中";

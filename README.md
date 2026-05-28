@@ -4,9 +4,9 @@
 
 GitHubから落としたプロジェクトを、そのまま動かす前に確認するための一次スクリーニングツールです。外部サーバには送信せず、Windows上でローカルに動作します。
 
-現在は、GlassWorm系で報告されている異体字セレクタと異体字セレクタ補助に加えて、npmサプライチェーン攻撃やAIコーディング環境に関連する既知の痕跡も簡易確認できます。
+現在は、GlassWorm系で報告されている異体字セレクタと異体字セレクタ補助に加えて、npmのinstall script、VS Code/Cursorの自動実行タスク、AIエージェント設定、GitHub Actions workflowの危険コマンド候補、Git hook候補なども簡易確認できます。
 
-このツールは「感染判定器」ではなく、知らないプロジェクトを実行する前に一度止まるための検査補助ツールです。検出された場合は、ファイル種別、該当箇所、実行経路、入手元を確認してください。
+このツールは「感染判定器」ではなく、知らないプロジェクトを実行する前に一度止まるための検査補助ツールです。検出された場合は、すぐに `npm install` やビルドを進めず、ファイル種別、該当箇所、実行経路、入手元を確認してください。
 
 このツールはウイルス対策ソフトの代替ではありません。ESETやWindows Defenderなどの常駐保護と併用し、GitHubから入手したプロジェクトを実行・インストール・AIエージェントに触らせる前の一次確認として使うものです。
 
@@ -18,21 +18,26 @@ GitHubから落としたプロジェクトを、そのまま動かす前に確�
 
 ## リリースの種類
 
-Invisible Payload Scannerには、現在大きく2つの使い方があります。
+Invisible Payload Scannerには、現在大きく3つのリリースがあります。
 
 - `v0.1.0 Classic`: 不可視Unicodeの確認に絞った最初のリリース
-- `v0.2.0 Safety Pre-Scan`: Classicに加えて、npmサプライチェーンIoCやAIコーディング環境の自動実行設定も確認するリリース
+- `v0.2.0 Safety Pre-Scan`: Classicに加えて、npmサプライチェーンIoCやエディタ/AIエージェントの自動実行設定も確認するリリース
+- `v0.3.0 Contagious Interview Pre-Scan`: v0.2.0に加えて、VS Code/Cursorでフォルダを開いた時に動く設定、npm install時のlifecycle script、GitHub Actions workflowの危険コマンド候補、Git hook系ローダー、safe-patternsによる優先度調整を確認するリリース
 
-既存の `v0.1.0` はそのまま残し、リリース済みzipは差し替えません。新しい確認範囲が必要な場合は `v0.2.0` 以降を使ってください。
+既存の `v0.1.0` はそのまま残し、リリース済みzipは差し替えません。新しい確認範囲が必要な場合は `v0.3.0` 以降を使ってください。
 
-## どちらを使えばいい？
+## どれを使えばいい？
 
-通常は最新版の **Safety Pre-Scan** を使ってください。
+通常は最新版の **v0.3.0 Contagious Interview Pre-Scan** を使ってください。
 
-- **Classic: Invisible Unicode Scan**
-  不可視Unicode、GlassWorm系、Trojan Source系の確認に絞った軽量モードです。
-- **Safety Pre-Scan**
-  Classicの内容に加えて、npmサプライチェーンIoC、VS Code自動実行設定、Claude Code / AIエージェントhooks、install scriptsを確認します。
+- **v0.3.0 Contagious Interview Pre-Scan**
+  通常はこちらを使います。不可視Unicodeだけでなく、`npm install`、VS Code/Cursor、AIエージェント、Git hookまわりの危険そうな設定もまとめて確認します。
+- **v0.1.0 Classic: Invisible Unicode Scan**
+  不可視Unicode、GlassWorm系、Trojan Source系の確認に絞った古い軽量モードです。
+- **v0.2.0 Safety Pre-Scan**
+  Classicの内容に加えて、npmサプライチェーンIoC、VS Code自動実行設定、Claude Code / AIエージェントのhooks、install scriptsを確認します。
+
+Web UIでは、まず `両方まとめて確認（v0.3おすすめ）` のまま使ってください。不可視Unicodeだけ確認したい時だけ、スキャン種別を切り替えます。
 
 過去リリースの `v0.1.0` は、不可視Unicode専用のClassic版として残します。リリース済みzipは差し替えません。
 
@@ -42,45 +47,72 @@ GitHubのReleasesから最新版の `InvisiblePayloadScanner-*.zip` をダウン
 
 展開したフォルダ内の `Start-InvisiblePayloadScanner.cmd` をダブルクリックすると、ローカルWeb UIが起動します。
 
-このツールは外部サーバにスキャン内容を送信しません。指定したフォルダ配下のファイルをローカルで読み取り、不可視Unicode列を検索します。
+`.cmd` は、zip展開後のローカルPowerShellスクリプトを起動するために `-ExecutionPolicy Bypass` を指定しています。これはこのツール同梱の `Start-InvisiblePayloadScanner.ps1` だけを実行するための限定措置です。出所不明の `.cmd` や `.ps1` に同じ扱いを広げないでください。
+
+このツールは外部サーバにスキャン内容を送信しません。指定したフォルダ配下のファイルをローカルで読み取り、不可視Unicodeや自動実行設定などのルールに照らして確認します。
 
 ## このツールの位置づけ
 
-CIや開発者向けには、既存のCLI型スキャナも有用です。このツールは、それとは別に次の用途へ寄せています。
+このツールは、GitHubなどから入手した知らないプロジェクトを、動かす前にざっと確認するためのものです。
 
-GlassWorm系の情報を追う中で既存の検知ツールはCLI型が多かったため、自分のWindows環境でフォルダを指定してすぐ確認できる、ローカル完結のWeb UIとして作りました。
+たとえば、面接課題、MVPレビュー、サンプルコード、知人から送られたリポジトリを開く前に、次のような危ない入口がないかを見ます。
 
-- Windowsでダブルクリック起動できる
-- 小さなブラウザUIからローカルだけでスキャンできる
-- 大きなフォルダでも進捗が見える
-- 不可視文字のコードポイントと周辺文字列を人間が読める形で表示する
-- 今後の不可視文字系IoCに合わせて検索ルールを調整できる
+- `npm install` で動く `prepare` や `postinstall`
+- VS Code/Cursorでフォルダを開いた時に動く可能性がある `tasks.json`
+- AIエージェントのhooks設定
+- `AGENTS.md`、`CLAUDE.md`、`.cursor/rules/` などのAIエージェント向け指示ファイル
+- GitHub Actions workflowの危険コマンド候補
+- Git操作で動く可能性がある `.husky/` や `.githooks/`
+- GlassWorm系の不可視Unicode
 
-フル機能のマルウェアスキャナ、パッケージ監査ツール、EDR、サプライチェーンセキュリティ製品を置き換えるものではありません。知らないプロジェクトを実行したり信頼したりする前に、疑わしい不可視ペイロードへ気づくための補助ツールです。
+CLIに慣れている人なら既存のコマンドライン型スキャナや監査ツールも使えます。このツールは、コマンド操作に慣れていない人でも、Windowsでダブルクリックして、ブラウザ画面から対象フォルダを選べるようにしたローカル完結の確認ツールです。
+
+ただし、これはウイルス対策ソフトやEDR、npm audit、専門的なサプライチェーン監査の代わりではありません。検出がない場合でも「安全確定」ではありません。知らないプロジェクトを実行する前に、危険そうな設定へ気づくための補助として使ってください。
 
 ## 使い方
 
-1. `Start-InvisiblePayloadScanner.cmd` をダブルクリックします。
-2. ブラウザが開いたら、スクリーニング対象フォルダを入力します。
-3. 必要ならファイル名フィルタ、除外ディレクトリ、除外ファイル、しきい値を調整します。
-4. `スキャン開始` を押します。
+1. GitHubなどから入手したzipを展開します。まだ `npm install`、ビルド、起動はしないでください。
+2. 展開したこのツールのフォルダで、`Start-InvisiblePayloadScanner.cmd` をダブルクリックします。
+3. ブラウザが開いたら、確認したいプロジェクトフォルダのパスを入力します。
+4. 最初は設定を変えず、スキャン種別は `両方まとめて確認（v0.3おすすめ）` のままにします。
+5. `スキャン開始` を押します。
+6. `危険` や `高リスク` が出た場合は、そのプロジェクトを実行せず、結果のファイル名と説明を確認してください。
 
-検索対象ファイルは読み取るだけで、実行はしません。結果に表示される `[VS U+FE0F]` や `[VS U+E0100]` が不可視文字を可視化したものです。
+このツールは対象ファイルを読み取るだけで、実行はしません。結果に表示される `[VS U+FE0F]` や `[VS U+E0100]` は、目で見えにくい不可視文字を読める形にしたものです。
 
-フォルダパスは、エクスプローラーで対象フォルダを開き、アドレスバーの文字列をコピーして貼り付けるのが簡単です。Windowsの「パスのコピー」で `"C:\path\to\project"` のように引用符が付いても、そのまま貼り付けられます。
+フォルダパスは、エクスプローラーで対象フォルダを開き、上のアドレスバーの文字列をコピーして貼り付けるのが簡単です。Windowsの「パスのコピー」で `"C:\path\to\project"` のように引用符が付いても、そのまま貼り付けられます。
+
+結果に何も出なくても、完全に安全という意味ではありません。知らないプロジェクトを動かす時は、ESETやWindows Defenderなどの常駐保護、VS Code/CursorのRestricted Mode、別環境での確認もあわせて使ってください。
 
 長いスキャンを途中で止めたい場合は、起動したPowerShellウィンドウを閉じてください。
 
+`サーバ停止` ボタンは、待機中のローカルサーバを閉じるためのものです。長いスキャンの実行中は応答が遅れることがあります。その場合も、起動したPowerShellウィンドウを閉じれば停止できます。
+
 ## スキャン範囲の目安
 
-このツールは、GitHubから展開したプロジェクトフォルダ単位で使うことを想定しています。ユーザーフォルダ全体や大きな親フォルダを指定すると、候補ファイルが多すぎて上限に達することがあります。
+このツールは、GitHubなどから展開した「1つのプロジェクトフォルダ」を確認する想定です。
 
-候補ファイルが多すぎる場合は、次のように絞ってください。
+おすすめは、次のようなフォルダをそのまま指定することです。
+
+- `package.json` が入っているプロジェクトのルートフォルダ
+- `.vscode/` や `.cursor/` が入っているプロジェクトのルートフォルダ
+- 面接課題やMVPレビューとして送られてきたフォルダ
+
+反対に、次のような大きすぎる範囲は避けてください。
+
+- `C:\Users\自分の名前` 全体
+- `Downloads` 全体
+- `Documents` 全体
+- PC全体やドライブ全体
+
+大きな親フォルダを指定すると、候補ファイルが多すぎて時間がかかったり、上限に達したりします。PC全体のウイルス検査は、ESETやWindows Defenderなどの常駐保護・フルスキャンに任せてください。
+
+候補ファイルが多すぎる場合は、次のように絞ります。
 
 - GitHubから展開した対象プロジェクトのフォルダだけを指定する
 - 除外ディレクトリに `node_modules;AppData;Windows;Program Files` などを追加する
-- まずは `maxFileSizeMb` を小さくし、必要なファイル種別だけに絞る
-- PC全体のウイルス検査は、ESETやWindows Defenderなどの常駐保護・フルスキャンに任せる
+- まずは `node_modules 全体も詳しく確認する` をオフのまま使う
+- 必要な時だけファイル名フィルタや最大ファイルサイズを調整する
 
 ## 結果JSONの使い方
 
@@ -94,6 +126,8 @@ GlassWorm系の情報を追う中で既存の検知ツールはCLI型が多か�
 - すでに実行してしまった場合に、どのプロジェクト・どの痕跡を見たか記録する
 
 JSONにはローカルパス、ユーザー名、プロジェクト名が含まれることがあります。公開issueやSNSに貼る前に、不要なパスや名前が含まれていないか確認してください。
+
+検出ログをAIに見せて「これは実行前に止めるべき検出か、誤検知寄りか、次に何を確認すべきか」を相談する使い方も有効です。ローカルLLMではない外部AIに渡す場合は、JSON内のローカルパス、ユーザー名、プロジェクト名、snippet、未マスクの秘密情報が含まれていないか確認し、必要なら該当箇所を削ってから共有してください。
 
 ## npm系プロジェクトでの追加防御
 
@@ -147,7 +181,15 @@ Get-ChildItem -LiteralPath "C:\path\to\project" -Recurse -File -ErrorAction Sile
 
 ## 既定の除外
 
-既定では、次のファイルを除外します。
+既定では、よくある生成物やこのスキャナ自身のセルフテスト用フォルダを除外します。
+
+```text
+.git;dist;build;coverage;.cache;.next;.nuxt;out;.tmp;temp;_selftest;_compound_selftest;.edge-preview-profile
+```
+
+`_selftest` と `_compound_selftest` は、このツールの自己診断で作る検知確認用フォルダです。このスキャナの開発フォルダ自体を確認する時に、わざと危険に見えるテスト標本を通常のプロジェクト検出と混同しないため、既定では除外します。
+
+また、次のファイルを除外します。
 
 ```text
 README.md;*.md
@@ -162,7 +204,7 @@ Markdown内の絵文字やアクセシビリティ記号では `U+FE0F` が普�
 スキャンは2段階です。
 
 1. 候補ファイルを数える
-2. 候補ファイル内の不可視文字列を検索する
+2. 候補ファイル内の不可視文字や自動実行設定を確認する
 
 Web UIのゲージは、1段階目では動作中表示、2段階目では候補ファイル数に対する検索済み割合を表示します。巨大フォルダでは候補ファイルの列挙にも時間がかかります。
 
@@ -187,32 +229,45 @@ Web UIの `検索ルール` で `カスタム正規表現` を選ぶと、今後
 
 ## Supply Chain IOC Scan
 
-Safety Pre-Scanでは、不可視Unicodeとは別に、既知のnpmサプライチェーン攻撃やAIコーディング環境の自動実行設定に関係する痕跡を確認します。
+Safety Pre-Scanでは、不可視Unicodeとは別に、既知のnpmサプライチェーン攻撃、install-time scripts、VS Code/Cursorの自動実行設定、AIエージェントhooks、GitHub Actions workflowの危険コマンド候補、Git hook候補に関係する痕跡を確認します。
 
 確認対象の例:
 
 - `package.json`
 - `package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`
 - `.vscode/tasks.json`
+- `.cursor/tasks.json`
 - `.claude/settings.json`
+- `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/*`, `.windsurfrules`, `.github/copilot-instructions.md`
 - `.github/workflows/*.yml`
+- `.husky/*`, `.githooks/*`
 - `.npmrc`, `.env*`
 - `node_modules/**/package.json`
 
 初期ルールは `rules/ioc-rules.json` に同梱しています。2026年5月のTanStack npm supply-chain compromiseで公開されたIoCを中心に、悪性git ref、`@tanstack/setup`、`router_init.js`、`tanstack_runner.js`、`filev2.getsession.org`、`seed*.getsession.org`、既知の影響バージョン候補を静的に照合します。
 
+v0.3の追加ルールは、見分けが付きやすいように `rules/v0.3/` に分けています。
+
+- `rules/v0.3/contagious-interview-rules.json`: 偽リクルーター/技術課題型リポジトリで見られる `folderOpen`、download-and-execute、短縮URL、Gist/Drive/Vercel系stager、install lifecycle、GitHub Actions workflowの危険コマンド候補、Git hook候補の静的ヒューリスティック
+- `rules/v0.3/safe-patterns.json`: `husky install`、`lint-staged`、`npm run build` など、低リスク寄りに下げるためのローカルsafe-patterns
+
+safe-patternsは警告を完全に消すものではありません。危険なdownload-and-execute、shell、base64/encoded payload、credential harvestingらしい語が同時に見つかる場合は、safe-patternsより危険判定を優先します。
+
 この機能は、パッケージ名だけで悪性と断定しません。`@tanstack/` のような名前空間一致は注意表示であり、危険度が上がるのは既知の悪性バージョン、既知IoC文字列、自動実行設定、install scriptの危険語などが重なった場合です。
 
-`.env` や `.npmrc` は秘密情報を含む可能性があるため、検出結果ではトークンらしい文字列をマスクします。JSON結果を公開する場合も、ローカルパス、ユーザー名、プロジェクト名が含まれていないか確認してください。
+v0.3では、単独の文字列一致よりも組み合わせを重視します。たとえば `.vscode/tasks.json` や `.cursor/tasks.json` の `runOn: folderOpen` が `npm install` / `npm i` / `pnpm i` / `yarn install` / `bun i` などを起動し、同じプロジェクトの `package.json` に `prepare` / `postinstall` などのinstall lifecycle scriptがある場合は、複合リスクとして追加表示します。
+
+`.env` や `.npmrc` は秘密情報を含む可能性があるため、検出結果では抜粋そのものを隠し、トークンらしい文字列もマスクします。JSON結果を公開する場合も、ローカルパス、ユーザー名、プロジェクト名が含まれていないか確認してください。
 
 検出が出たときの簡易対策:
 
 1. `Critical` がある場合は、そのプロジェクトを実行しないでください。
 2. `npm install`、ビルド、起動、AIエージェントによる自動修正を止めます。
-3. VS Codeで開く場合はRestricted Modeを使い、`.vscode/tasks.json` を確認します。
-4. `.claude/settings.json` などのhooksがある場合は、AIエージェントで開く前に内容を確認します。
-5. package名だけの検出は悪性確定ではありません。バージョン、lockfile、公式アドバイザリを確認してください。
-6. 既に実行済みでCritical/Highが出た場合は、GitHub token、npm token、APIキー、SSH鍵などのローテーションを検討してください。
+3. VS CodeやCursorで開く場合はRestricted Modeを使い、`.vscode/tasks.json` / `.cursor/tasks.json` を確認します。
+4. `.claude/settings.json` などのhooksや、`AGENTS.md` / `CLAUDE.md` / `.cursor/rules/` などの指示ファイルがある場合は、AIエージェントで開く前に内容を確認します。
+5. `.husky/` や `.githooks/` が検出された場合は、`git commit`、`git checkout`、`git merge` などで実行される可能性があるため、hookの内容を確認します。
+6. package名だけの検出は悪性確定ではありません。バージョン、lockfile、公式アドバイザリを確認してください。
+7. 既に実行済みでCritical/Highが出た場合は、GitHub token、npm token、APIキー、SSH鍵などのローテーションを検討してください。
 
 ## 精度と安全性の設計
 
@@ -230,7 +285,9 @@ Web UI自体の安全性は、次の構造で高めています。
 - 外部サーバにデータを送信しません。
 - `127.0.0.1` のローカルHTTPサーバとして動作します。
 - 起動ごとにランダムなローカルAPIトークンを生成し、スキャンや停止APIに必要とします。
-- APIリクエストのOriginを確認し、別サイトからの単純なローカルAPI呼び出しを通しにくくしています。
+- Hostヘッダーを `127.0.0.1:<port>` / `localhost:<port>` に限定します。
+- APIリクエストのOriginを確認し、OriginがないAPI呼び出しや別サイトからの単純なローカルAPI呼び出しを通しにくくしています。
+- Content-Security-Policyなどのブラウザ向け安全ヘッダーを返します。
 - 指定されたファイルは読み取りのみで、実行しません。
 - 検出結果はブラウザ上に表示され、JSON保存はユーザー操作時のみ行います。
 - 検索に使う正規表現はPowerShell/.NET上で実行し、各ファイルごとに正規表現タイムアウトを設定しています。
@@ -239,6 +296,7 @@ Web UI自体の安全性は、次の構造で高めています。
 
 この設計でも、次のものは保証できません。
 
+- 同じWindowsユーザー権限で既に悪意あるプロセスや危険なブラウザ拡張機能が動いている場合の保護
 - バイナリに埋め込まれたマルウェア
 - インストール時に外部から取得されるコード
 - 難読化された通常文字ベースのローダー
@@ -289,6 +347,7 @@ Web UI自体の安全性は、次の構造で高めています。
 5. 既に実行済みの場合は、該当プロジェクトの依存関係、インストール時スクリプト、最近のコミット差分を確認します。
 6. GitHubやnpmなどの公式ページ、issue、セキュリティアドバイザリで同名パッケージの報告がないか確認します。
 7. 不審な場合はプロジェクトフォルダを削除する前に、検出結果JSON、該当ファイル、パッケージ名、バージョンを控えます。
+8. 判断に迷う場合は、検出結果JSONを詳しい人やAIに見せて相談します。外部AIに渡す時は、ローカルパス、ユーザー名、プロジェクト名、snippet、秘密情報が含まれていないか先に確認してください。
 
 誤検知の可能性が高い例:
 

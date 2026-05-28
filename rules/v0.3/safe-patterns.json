@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-05-27",
+  "sourceNote": "Local allowlist-style patterns used to lower, not erase, low-risk lifecycle script findings. Dangerous download, shell, obfuscation, or secret-harvesting terms still win over this list.",
+  "safeScriptNames": [
+    "prepare",
+    "postinstall",
+    "build",
+    "lint",
+    "test"
+  ],
+  "safeCommandPatterns": [
+    {
+      "pattern": "^husky( install)?$",
+      "note": "Common local Git hook setup command."
+    },
+    {
+      "pattern": "^lint-staged$",
+      "note": "Common staged-file lint runner."
+    },
+    {
+      "pattern": "^(npm|pnpm|yarn) run (build|lint|test)( -- .*)?$",
+      "note": "Common local project task wrapper."
+    },
+    {
+      "pattern": "^turbo run (build|lint|test)( .*)?$",
+      "note": "Common monorepo task runner."
+    },
+    {
+      "pattern": "^prettier( --check| --write)?( .*)?$",
+      "note": "Common formatter command."
+    },
+    {
+      "pattern": "^eslint( .*)?$",
+      "note": "Common linter command."
+    },
+    {
+      "pattern": "^tsc( --noEmit)?$",
+      "note": "Common TypeScript check command."
+    },
+    {
+      "pattern": "^vite build$",
+      "note": "Common frontend build command."
+    },
+    {
+      "pattern": "^next build$",
+      "note": "Common Next.js build command."
+    }
+  ]
+}

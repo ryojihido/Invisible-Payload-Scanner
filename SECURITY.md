@@ -44,20 +44,28 @@ Out of scope:
 
 - The local server binds to `127.0.0.1`.
 - A random local API token is generated on each startup and required for scan and stop requests.
-- API request origins are checked when the browser sends an `Origin` header.
+- The Host header is limited to `127.0.0.1:<port>` or `localhost:<port>`.
+- API request origins are required and checked against the local UI origin.
+- Browser safety headers such as Content-Security-Policy, `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy` are returned.
 - Files are read, not executed.
 - Package manager commands such as `npm install`, `pnpm install`, `yarn install`, and `bun install` are not run by this scanner.
 - Bundled IOC rules are read from local files. The scanner does not fetch rule updates automatically.
-- Token-like strings in snippets are masked before display.
+- `.env` / `.npmrc` snippets are hidden, and token-like strings in other snippets are masked before display.
 - Scan results are inserted into the UI using text assignment rather than raw HTML.
 - Reparse points are skipped to avoid following junctions or symlinks.
 - Regex matching uses a timeout per file.
 - The default threshold is tuned to reduce common emoji-related false positives.
 - Request body size, custom pattern length, maximum file size, and candidate file count are capped server-side.
 
+## Threat model limits
+
+The local API token, Host check, and Origin check are designed to reduce simple localhost abuse from other sites or origins. They do not protect against a malicious process already running under the same Windows user account, or against a highly privileged browser extension in the browser used to open the scanner UI. Such code may be able to fetch the local UI, read the embedded token, and call the local scan API.
+
+If you suspect malicious resident software or unsafe browser extensions on the machine, do not rely on this scanner alone. Review browser extensions, use operating-system protection, and prefer an isolated environment for unknown projects.
+
 ## Supply Chain IOC Scan limits
 
-Supply Chain IOC Scan is a static pre-run check. It can flag known IOC strings, known affected package versions included in the bundled rules, VS Code folder-open tasks, Claude Code / AI agent hooks, and install-time lifecycle scripts.
+Supply Chain IOC Scan is a static pre-run check. It can flag known IOC strings, known affected package versions included in the bundled rules, VS Code/Cursor folder-open tasks, Claude Code / AI agent hooks, AI-agent instruction files, GitHub Actions workflow risk hints, and install-time lifecycle scripts.
 
 It does not prove that a project is clean. Package names alone are treated as prompts for review, not proof of compromise. If a critical or high finding appears, stop before installing or building the project, confirm the source, compare package versions with official advisories, and rotate credentials if the project has already been executed in an exposed environment.
 

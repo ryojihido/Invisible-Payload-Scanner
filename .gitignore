@@ -1,4 +1,7 @@
 _selftest/
+_compound_selftest/
+dist/
+.edge-preview-profile/
 *.log
 *.tmp
 glassworm-scan-*.json
