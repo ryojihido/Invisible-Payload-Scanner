@@ -1,5 +1,7 @@
 # Invisible Payload Scanner
 
+## A local-first safety tool for non-engineers to inspect GitHub code and AI-generated projects before running them.
+
 Invisible Payload Scanner started as a tool for my own use, then grew into a Windows-friendly local Web UI for people who are not comfortable with CLI workflows.
 
 It is meant for checking projects downloaded from GitHub before running them. It runs locally on Windows and does not upload scanned file contents to an external server.
