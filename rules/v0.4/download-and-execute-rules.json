@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "0.4",
+  "updatedAt": "2026-06-10",
+  "description": "Classic download-and-execute and LOLBin command patterns. A single match stays low (info in documentation context). Findings escalate only when they appear inside auto-run locations such as folderOpen tasks, install lifecycle scripts, Git hooks, or root GitHub Actions workflows.",
+  "downloadAndExecutePatterns": [
+    {
+      "id": "curl-wget-pipe-shell",
+      "term": "curl|sh",
+      "pattern": "(?<![A-Za-z0-9_.-])(curl|wget)(\\.exe)?[^\\n|]{0,200}\\|\\s*(sh|bash|node)\\b"
+    },
+    {
+      "id": "psh-web-pipe-iex",
+      "term": "iwr|iex",
+      "pattern": "\\b(iwr|Invoke-WebRequest|irm|Invoke-RestMethod)\\b[^\\n]{0,200}(\\||;)\\s*(iex\\b|Invoke-Expression\\b)"
+    },
+    {
+      "id": "powershell-encodedcommand",
+      "term": "powershell -enc",
+      "pattern": "powershell(\\.exe)?\\s+[^\\n]*-(e|en|enc|encodedcommand)\\s+[A-Za-z0-9+/=]{40,}"
+    },
+    {
+      "id": "lolbin-certutil",
+      "term": "certutil",
+      "pattern": "(?<![A-Za-z0-9_.-])certutil(\\.exe)?\\s+(-urlcache|-decode)\\b"
+    },
+    {
+      "id": "lolbin-mshta",
+      "term": "mshta",
+      "pattern": "(?<![A-Za-z0-9_.-])mshta(\\.exe)?\\s+https?:"
+    },
+    {
+      "id": "lolbin-bitsadmin",
+      "term": "bitsadmin",
+      "pattern": "(?<![A-Za-z0-9_.-])bitsadmin(\\.exe)?\\s+/transfer\\b"
+    },
+    {
+      "id": "lolbin-rundll32-javascript",
+      "term": "rundll32 javascript",
+      "pattern": "(?<![A-Za-z0-9_.-])rundll32(\\.exe)?\\s+[^\\n]*javascript:"
+    }
+  ]
+}
