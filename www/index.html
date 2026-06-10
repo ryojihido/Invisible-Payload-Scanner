@@ -270,6 +270,56 @@
       color: #5f4700;
       display: none;
     }
+    .assurance {
+      border: 1px solid #abefc6;
+      background: #f3fcf7;
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #067647;
+      font-size: 13px;
+      line-height: 1.55;
+      margin-bottom: 14px;
+    }
+    .verdict-card {
+      border: 2px solid var(--line);
+      border-radius: 8px;
+      padding: 16px 18px;
+      margin-bottom: 16px;
+    }
+    .verdict-card.red { border-color: #f04438; background: #fff5f3; }
+    .verdict-card.yellow { border-color: #fdb022; background: #fffbeb; }
+    .verdict-card.green { border-color: #17b26a; background: #f3fcf7; }
+    .verdict-title {
+      margin: 0 0 10px;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .verdict-steps {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      line-height: 1.8;
+    }
+    .verdict-note {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #475467;
+      line-height: 1.55;
+    }
+    .verdict-card details { margin-top: 10px; }
+    .verdict-card summary {
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 650;
+      color: #344054;
+    }
+    .verdict-details-text {
+      margin-top: 8px;
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      color: #344054;
+    }
     .results-table-wrap {
       width: 100%;
       overflow-x: auto;
@@ -333,6 +383,7 @@
   </header>
   <main>
     <section>
+      <div class="assurance" data-i18n="assurance.line">このツールはファイルを読むだけで、実行・送信はしません。結果はこのPCの中だけに表示されます。</div>
       <div class="grid">
         <div class="field span-12">
           <label for="rootPath" data-i18n="rootPath.label">スクリーニング対象フォルダ</label>
@@ -421,8 +472,8 @@
     </section>
 
     <section id="resultSection" class="hidden">
+      <div id="verdictCard" class="verdict-card hidden"></div>
       <div id="summary" class="summary"></div>
-      <div id="resultGuide" class="notice"></div>
       <div id="limitAlert" class="alert" data-i18n="alerts.limit">結果が多いため、先頭5000件で表示を止めています。対象フォルダまたはフィルタを絞って再実行してください。</div>
       <div id="errorAlert" class="alert"></div>
       <div class="results-table-wrap">
@@ -516,6 +567,24 @@
         "alerts.ruleFallback": "同梱IOCルールを読めなかったため、簡易ルールだけで確認しています。",
         "verdict.detected": "検出あり",
         "verdict.clean": "検出なし",
+        "assurance.line": "このツールはファイルを読むだけで、実行・送信はしません。結果はこのPCの中だけに表示されます。",
+        "verdictCard.details": "詳しい説明と対処方法を見る",
+        "verdictCard.red.title": "🔴 このプロジェクトは実行しないでください",
+        "verdictCard.red.step1": "① npm install・ビルド・起動をしない",
+        "verdictCard.red.step2": "② VS CodeやCursorで開かない（開く場合はRestricted Modeにする）",
+        "verdictCard.red.step3": "③ 結果をJSON保存して、詳しい人かAIに相談する",
+        "verdictCard.red.extNote": "検出はすべてエディタ/AIツールの拡張機能フォルダ内です。正規の拡張機能の可能性もあるため、拡張機能名と発行元を確認してください。",
+        "verdictCard.yellow.title": "🟡 実行する前に、確認したい点があります",
+        "verdictCard.yellow.checkFiles": "① 次のファイルを開いて内容を確認する: {files}",
+        "verdictCard.yellow.consult": "② 判断できない場合は、結果をJSON保存して詳しい人かAIに相談する",
+        "verdictCard.yellow.fpNote": "検出はすべて説明文ファイルやスキャナ内部由来で、誤検知の可能性が高いものです。念のため上のファイルだけ確認してください。",
+        "verdictCard.green.title": "🟢 危ない入口は見つかりませんでした",
+        "verdictCard.green.note": "ただし、完全な安全保証ではありません。未知のマルウェアや外部取得コードまでは検出できません。",
+        "tooltip.critical": "危険 = 既知の攻撃手口と一致しました",
+        "tooltip.high": "高リスク = 自動実行される危険な設定です",
+        "tooltip.medium": "要注意 = 名前や設定が既知事例と類似しています",
+        "tooltip.low": "低 = 注意喚起レベルの検出です",
+        "tooltip.info": "参考 = 場所の文脈から誤検知の可能性が高い検出です",
         "metrics.verdict": "判定",
         "metrics.findings": "検出件数",
         "metrics.scanned": "走査ファイル",
@@ -626,6 +695,24 @@
         "alerts.ruleFallback": "Bundled IOC rules could not be loaded, so only minimal fallback rules are active.",
         "verdict.detected": "Findings",
         "verdict.clean": "No findings",
+        "assurance.line": "This tool only reads files. It never executes them or sends data anywhere. Results stay on this PC.",
+        "verdictCard.details": "Show detailed explanation and remediation steps",
+        "verdictCard.red.title": "🔴 Do not run this project",
+        "verdictCard.red.step1": "① Do not run npm install, builds, or the app",
+        "verdictCard.red.step2": "② Do not open it in VS Code or Cursor (use Restricted Mode if you must)",
+        "verdictCard.red.step3": "③ Save the results as JSON and ask a technical person or an AI",
+        "verdictCard.red.extNote": "All findings are inside editor/AI-tool extension folders. They may belong to legitimate extensions, so check the extension name and publisher.",
+        "verdictCard.yellow.title": "🟡 Please check a few things before running",
+        "verdictCard.yellow.checkFiles": "① Open and review these files: {files}",
+        "verdictCard.yellow.consult": "② If unsure, save the results as JSON and ask a technical person or an AI",
+        "verdictCard.yellow.fpNote": "All findings come from documentation files or scanner internals and are likely false positives. Review the files above just in case.",
+        "verdictCard.green.title": "🟢 No dangerous entry points were found",
+        "verdictCard.green.note": "This is not a complete safety guarantee. Unknown malware and externally downloaded code cannot be detected.",
+        "tooltip.critical": "Critical = matches a known attack technique",
+        "tooltip.high": "High = a dangerous setting that runs automatically",
+        "tooltip.medium": "Review = name or setting resembles a known incident",
+        "tooltip.low": "Low = an advisory-level finding",
+        "tooltip.info": "Info = likely a false positive based on its location context",
         "metrics.verdict": "Verdict",
         "metrics.findings": "Findings",
         "metrics.scanned": "Scanned files",
@@ -794,7 +881,7 @@
       $("limitAlert").style.display = data.resultLimitReached ? "block" : "none";
       $("errorAlert").style.display = data.errors.length ? "block" : "none";
       $("errorAlert").textContent = data.errors.length ? t("alerts.readErrors", { count: data.errors.length }) : "";
-      $("resultGuide").textContent = getResultGuide(data);
+      renderVerdictCard(data);
       if (data.supplyChainRules && data.supplyChainRules.loadStatus === "fallback") {
         $("errorAlert").style.display = "block";
         $("errorAlert").textContent = ($("errorAlert").textContent ? $("errorAlert").textContent + " " : "") + t("alerts.ruleFallback");
@@ -826,7 +913,10 @@
 
       const body = $("resultsBody");
       body.textContent = "";
-      for (const row of data.results) {
+      const sortedRows = [...(data.results || [])].sort(
+        (a, b) => getSeverityRank(a.severity) - getSeverityRank(b.severity)
+      );
+      for (const row of sortedRows) {
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td class="mono"></td>
@@ -841,6 +931,7 @@
         const badge = document.createElement("span");
         badge.className = `badge ${row.severity || "info"}`;
         badge.textContent = getSeverityLabel(row.severity || "info");
+        badge.title = getSeverityTooltip(row.severity || "info");
         tr.children[2].appendChild(badge);
         tr.children[3].textContent = row.category || "";
         tr.children[4].textContent = row.match || "";
@@ -938,6 +1029,114 @@
         case "low": return t("severity.low");
         default: return t("severity.info");
       }
+    }
+
+    const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+    const FP_LEANING_CONTEXTS = ["documentation", "scanner-rule-file", "scanner-source", "scanner-selftest"];
+
+    function getSeverityRank(severity) {
+      const rank = SEVERITY_ORDER[(severity || "info").toLowerCase()];
+      return rank === undefined ? SEVERITY_ORDER.info : rank;
+    }
+
+    function getSeverityTooltip(severity) {
+      switch ((severity || "info").toLowerCase()) {
+        case "critical": return t("tooltip.critical");
+        case "high": return t("tooltip.high");
+        case "medium": return t("tooltip.medium");
+        case "low": return t("tooltip.low");
+        default: return t("tooltip.info");
+      }
+    }
+
+    function isFalsePositiveLeaning(row) {
+      return FP_LEANING_CONTEXTS.includes(row.pathContext || "");
+    }
+
+    function getVerdict(data) {
+      if (!data.matchCount) {
+        return {
+          level: "green",
+          title: t("verdictCard.green.title"),
+          steps: [],
+          note: t("verdictCard.green.note")
+        };
+      }
+      const rows = data.results || [];
+      const redRows = rows.filter((row) => {
+        const severity = (row.severity || "info").toLowerCase();
+        return (severity === "critical" || severity === "high") && !isFalsePositiveLeaning(row);
+      });
+      if (redRows.length > 0) {
+        const allEditorExtension = redRows.every((row) => row.pathContext === "editor-extension");
+        return {
+          level: "red",
+          title: t("verdictCard.red.title"),
+          steps: [t("verdictCard.red.step1"), t("verdictCard.red.step2"), t("verdictCard.red.step3")],
+          note: allEditorExtension ? t("verdictCard.red.extNote") : ""
+        };
+      }
+      const allFalsePositiveLeaning = rows.every(isFalsePositiveLeaning);
+      const candidateRows = rows.filter((row) => !isFalsePositiveLeaning(row));
+      const fileSourceRows = candidateRows.length > 0 ? candidateRows : rows;
+      const filePaths = [...new Set(
+        [...fileSourceRows]
+          .sort((a, b) => getSeverityRank(a.severity) - getSeverityRank(b.severity))
+          .map((row) => row.path)
+          .filter(Boolean)
+      )].slice(0, 2);
+      const separator = currentLang === "en" ? ", " : "、";
+      const steps = [];
+      if (filePaths.length > 0) {
+        steps.push(t("verdictCard.yellow.checkFiles", { files: filePaths.join(separator) }));
+      }
+      steps.push(t("verdictCard.yellow.consult"));
+      return {
+        level: "yellow",
+        title: t("verdictCard.yellow.title"),
+        steps,
+        note: allFalsePositiveLeaning ? t("verdictCard.yellow.fpNote") : ""
+      };
+    }
+
+    function renderVerdictCard(data) {
+      const card = $("verdictCard");
+      const verdict = getVerdict(data);
+      card.textContent = "";
+      card.className = `verdict-card ${verdict.level}`;
+
+      const title = document.createElement("p");
+      title.className = "verdict-title";
+      title.textContent = verdict.title;
+      card.appendChild(title);
+
+      if (verdict.steps.length > 0) {
+        const list = document.createElement("ul");
+        list.className = "verdict-steps";
+        for (const step of verdict.steps) {
+          const item = document.createElement("li");
+          item.textContent = step;
+          list.appendChild(item);
+        }
+        card.appendChild(list);
+      }
+
+      if (verdict.note) {
+        const note = document.createElement("div");
+        note.className = "verdict-note";
+        note.textContent = verdict.note;
+        card.appendChild(note);
+      }
+
+      const details = document.createElement("details");
+      const summaryEl = document.createElement("summary");
+      summaryEl.textContent = t("verdictCard.details");
+      const detailsText = document.createElement("div");
+      detailsText.className = "verdict-details-text";
+      detailsText.textContent = getResultGuide(data);
+      details.appendChild(summaryEl);
+      details.appendChild(detailsText);
+      card.appendChild(details);
     }
 
     function getResultGuide(data) {
