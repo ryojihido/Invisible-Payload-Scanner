@@ -1682,6 +1682,7 @@ function Invoke-Scanner {
     $matchedFiles = 0
     $maxResults = 5000
     $started = Get-Date
+    $progressState = @{ lastSentAt = Get-Date }
 
     function Send-ScannerProgress {
         param(
@@ -1693,6 +1694,7 @@ function Invoke-Scanner {
         if ($null -eq $Progress) {
             return
         }
+        $progressState.lastSentAt = Get-Date
         & $Progress @{
             type = "progress"
             phase = $Phase
@@ -1711,6 +1713,9 @@ function Invoke-Scanner {
 
     while ($dirs.Count -gt 0) {
         $dir = $dirs.Pop()
+        if (((Get-Date) - $progressState.lastSentAt).TotalSeconds -ge 2) {
+            Send-ScannerProgress -Phase "enumerate" -Percent 0 -CurrentPath $dir
+        }
         $children = @()
         try {
             $children = Get-ChildItem -LiteralPath $dir -Force -ErrorAction Stop
@@ -1772,7 +1777,7 @@ function Invoke-Scanner {
             if ($candidateFiles.Count -gt $MaxCandidateFiles) {
                 throw ("Too many candidate files. Limit: {0}. Narrow the target to a downloaded project folder, or add exclusions such as node_modules;AppData;Windows;Program Files." -f $MaxCandidateFiles)
             }
-            if (($candidateFiles.Count % 500) -eq 0) {
+            if (($candidateFiles.Count % 500) -eq 0 -or ((Get-Date) - $progressState.lastSentAt).TotalSeconds -ge 2) {
                 Send-ScannerProgress -Phase "enumerate" -Percent 0 -CurrentPath $child.FullName
             }
         }
@@ -1813,7 +1818,7 @@ function Invoke-Scanner {
                     $errors.Add(@{ path = $child.FullName; message = $_.Exception.Message })
                 }
             }
-            if (($scannedFiles % 50) -eq 0 -or $scannedFiles -eq $candidateFiles.Count) {
+            if (($scannedFiles % 25) -eq 0 -or $scannedFiles -eq $candidateFiles.Count -or ((Get-Date) - $progressState.lastSentAt).TotalSeconds -ge 2) {
                 $percent = [int][Math]::Min(99, [Math]::Floor(($scannedFiles / $totalCandidates) * 100))
                 Send-ScannerProgress -Phase "scan" -Percent $percent -CurrentPath $child.FullName
             }
@@ -1955,8 +1960,19 @@ function Write-NdjsonLine {
 
     $json = ($Object | ConvertTo-Json -Depth 12 -Compress) + "`n"
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
-    $Stream.Write($bytes, 0, $bytes.Length)
-    $Stream.Flush()
+    try {
+        $Stream.Write($bytes, 0, $bytes.Length)
+        $Stream.Flush()
+    }
+    catch [System.IO.IOException] {
+        throw "ScanCancelled"
+    }
+    catch [System.Net.Sockets.SocketException] {
+        throw "ScanCancelled"
+    }
+    catch [System.ObjectDisposedException] {
+        throw "ScanCancelled"
+    }
 }
 
 function Send-Json {
@@ -2440,7 +2456,16 @@ try {
                     Write-NdjsonLine -Stream $stream -Object @{ type = "result"; result = $result }
                 }
                 catch {
-                    Write-NdjsonLine -Stream $stream -Object @{ type = "error"; error = (ConvertTo-SafeApiErrorMessage -Message $_.Exception.Message) }
+                    if ($_.Exception.Message -eq "ScanCancelled") {
+                        Write-Host "Scan cancelled by client. Server keeps running."
+                    }
+                    else {
+                        try {
+                            Write-NdjsonLine -Stream $stream -Object @{ type = "error"; error = (ConvertTo-SafeApiErrorMessage -Message $_.Exception.Message) }
+                        }
+                        catch {
+                        }
+                    }
                 }
             }
             elseif ($request.method -eq "POST" -and $path -eq "/api/stop") {

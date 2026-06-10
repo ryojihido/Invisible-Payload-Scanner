@@ -63,11 +63,11 @@ Files are read only. They are not executed. Findings display invisible character
 
 The easiest way to enter a folder path is to open the target folder in File Explorer and copy the address bar. Quoted paths such as `"C:\path\to\project"` are accepted.
 
-To interrupt a long scan, close the PowerShell window that launched the scanner.
+To interrupt a long scan, use the `Cancel scan` button next to the progress gauge. The server keeps running, so you can adjust the settings and scan again. If the page ever stops responding, it is also safe to close the PowerShell window that launched the scanner.
 
 The `.cmd` launcher uses `-ExecutionPolicy Bypass` only to run the bundled local `Start-InvisiblePayloadScanner.ps1` from the extracted release folder. Do not treat that as a general rule for unknown `.cmd` or `.ps1` files.
 
-The `サーバ停止` button stops the local server while it is idle. During a long scan, the response can be delayed; closing the PowerShell window still stops the tool.
+The `ツールを終了する` (Exit the tool) button stops the local server and closes the tool. To stop only the current scan, use `Cancel scan` instead.
 
 ## JSON Export
 

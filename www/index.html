@@ -187,6 +187,15 @@
       padding: 12px;
       background: #fbfcfe;
     }
+    .progress-top-right {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .progress-top-right button {
+      padding: 4px 12px;
+      font-size: 12px;
+    }
     .progress-top {
       display: flex;
       justify-content: space-between;
@@ -454,15 +463,18 @@
       <div class="actions">
         <button id="scanButton" class="primary" type="button" data-i18n="buttons.scan">スキャン開始</button>
         <button id="exportButton" type="button" disabled data-i18n="buttons.export">結果をJSON保存</button>
-        <button id="stopButton" type="button" data-i18n="buttons.stop">サーバ停止</button>
+        <button id="stopButton" type="button" data-i18n="buttons.stop">ツールを終了する</button>
         <div id="status" class="status"></div>
       </div>
       <div class="hint" data-i18n="export.hint">結果JSONは、あとで見返す、詳しい人に相談する、GitHub issueやSecurity Advisoryを確認する時の控えとして使えます。共有や公開の前に、ローカルパス、ユーザー名、プロジェクト名が含まれていないか確認してください。</div>
-      <div class="hint" data-i18n="cancel.hint">長いスキャンを中止したい場合は、起動したPowerShellウィンドウを閉じてください。</div>
+      <div class="hint" data-i18n="cancel.hint">スキャン中は「スキャン中止」ボタンで安全に止められます。万一画面が応答しない場合は、PowerShellウィンドウを閉じても安全です。</div>
       <div id="progressWrap" class="progress-wrap">
         <div class="progress-top">
           <span id="progressPhase" data-i18n="progress.idle">待機中</span>
-          <span id="progressPercent">0%</span>
+          <span class="progress-top-right">
+            <button id="cancelScanButton" type="button" class="hidden" data-i18n="buttons.cancelScan">スキャン中止</button>
+            <span id="progressPercent">0%</span>
+          </span>
         </div>
         <div class="progress-track">
           <div id="progressBar" class="progress-bar"></div>
@@ -507,6 +519,7 @@
     const $ = (id) => document.getElementById(id);
     let lastResult = null;
     let currentLang = "ja";
+    let scanAbortController = null;
 
     const I18N = {
       ja: {
@@ -545,9 +558,11 @@
         "customPattern.label": "カスタム正規表現",
         "buttons.scan": "スキャン開始",
         "buttons.export": "結果をJSON保存",
-        "buttons.stop": "サーバ停止",
+        "buttons.stop": "ツールを終了する",
+        "buttons.cancelScan": "スキャン中止",
         "export.hint": "結果JSONは、あとで見返す、詳しい人に相談する、GitHub issueやSecurity Advisoryを確認する時の控えとして使えます。共有や公開の前に、ローカルパス、ユーザー名、プロジェクト名が含まれていないか確認してください。",
-        "cancel.hint": "長いスキャンを中止したい場合は、起動したPowerShellウィンドウを閉じてください。",
+        "cancel.hint": "スキャン中は「スキャン中止」ボタンで安全に止められます。万一画面が応答しない場合は、PowerShellウィンドウを閉じても安全です。",
+        "status.scanCancelled": "スキャンを中止しました。設定を変えて再実行できます。",
         "progress.idle": "待機中",
         "alerts.limit": "結果が多いため、先頭5000件で表示を止めています。対象フォルダまたはフィルタを絞って再実行してください。",
         "table.file": "ファイル",
@@ -673,9 +688,11 @@
         "customPattern.label": "Custom regular expression",
         "buttons.scan": "Start scan",
         "buttons.export": "Save results as JSON",
-        "buttons.stop": "Stop server",
+        "buttons.stop": "Exit the tool",
+        "buttons.cancelScan": "Cancel scan",
         "export.hint": "The JSON result is useful for later review, asking a technical person, or checking GitHub issues and security advisories. Before sharing or publishing it, check for local paths, user names, and project names.",
-        "cancel.hint": "To cancel a long scan, close the PowerShell window that launched this tool.",
+        "cancel.hint": "Use the Cancel scan button to stop a running scan safely. If the page ever stops responding, it is also safe to close the PowerShell window.",
+        "status.scanCancelled": "Scan cancelled. You can change the settings and run it again.",
         "progress.idle": "Idle",
         "alerts.limit": "There are many results, so display stopped at the first 5000. Narrow the folder or filters and scan again.",
         "table.file": "File",
@@ -829,13 +846,17 @@
       $("stopButton").disabled = true;
       $("status").textContent = t("status.scanning");
       $("resultSection").classList.add("hidden");
+      scanAbortController = new AbortController();
+      $("cancelScanButton").disabled = false;
+      $("cancelScanButton").classList.remove("hidden");
       showProgress({ phase: "enumerate", percent: 0, currentPath: payload.rootPath, scannedFiles: 0, candidateFiles: 0, matchCount: 0 });
 
       try {
         const response = await fetch("/api/scan-stream", {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-Scanner-Token": API_TOKEN },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
+          signal: scanAbortController.signal
         });
         if (!response.ok || !response.body) throw new Error("Scan failed.");
         const data = await readScanStream(response);
@@ -846,13 +867,26 @@
         showProgress({ phase: "done", percent: 100, currentPath: "", scannedFiles: data.scannedFiles, candidateFiles: data.candidateFiles, matchCount: data.matchCount });
         $("status").textContent = data.matchCount > 0 ? t("status.hasFindings") : t("status.noFindings");
       } catch (error) {
-        const message = friendlyErrorMessage(error.message);
-        showProgress({ phase: "error", percent: 100, currentPath: message, scannedFiles: 0, candidateFiles: 0, matchCount: 0 });
-        $("status").textContent = t("status.errorPrefix") + message;
+        if (error.name === "AbortError") {
+          showProgress({ phase: "error", percent: 100, currentPath: t("status.scanCancelled"), scannedFiles: 0, candidateFiles: 0, matchCount: 0 });
+          $("status").textContent = t("status.scanCancelled");
+        } else {
+          const message = friendlyErrorMessage(error.message);
+          showProgress({ phase: "error", percent: 100, currentPath: message, scannedFiles: 0, candidateFiles: 0, matchCount: 0 });
+          $("status").textContent = t("status.errorPrefix") + message;
+        }
       } finally {
+        scanAbortController = null;
+        $("cancelScanButton").classList.add("hidden");
         $("scanButton").disabled = false;
         $("stopButton").disabled = false;
       }
+    });
+
+    $("cancelScanButton").addEventListener("click", () => {
+      if (!scanAbortController) return;
+      $("cancelScanButton").disabled = true;
+      scanAbortController.abort();
     });
 
     $("exportButton").addEventListener("click", () => {
