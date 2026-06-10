@@ -52,6 +52,18 @@ I made this because many existing GlassWorm-related detection tools are CLI-orie
 
 It does not replace a malware scanner, package-audit tool, EDR, or supply-chain security platform. It helps users notice suspicious invisible payloads before running or trusting unfamiliar projects.
 
+## Verifying the Downloaded Zip
+
+Before extracting, run this one line in PowerShell (adjust the file name to the version you downloaded):
+
+```powershell
+Get-FileHash .\InvisiblePayloadScanner-v0.4.0.zip -Algorithm SHA256
+```
+
+If the displayed value matches the SHA-256 listed on the GitHub Release page, the file is authentic. If it does not match, do not use it — download it again from the Release page.
+
+The PowerShell window also prints `Script SHA-256:` at startup so you can compare the script's own hash. Code signing (Authenticode) is a future consideration; SHA-256 comparison is the current verification method.
+
 ## Usage
 
 1. Double-click `Start-InvisiblePayloadScanner.cmd`.

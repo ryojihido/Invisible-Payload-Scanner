@@ -2400,6 +2400,13 @@ $allowedHosts = @("127.0.0.1:$Port", "localhost:$Port")
 $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Parse("127.0.0.1"), $Port)
 $listener.Start()
 
+try {
+    $selfHash = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash
+    Write-Host "Script SHA-256: $selfHash"
+}
+catch {
+    Write-Host "Script SHA-256: (could not be computed)"
+}
 Write-Host "Invisible Payload Scanner is running at $prefix"
 Write-Host "Close this window or press Ctrl+C to stop."
 

@@ -54,6 +54,18 @@ GitHubのReleasesから最新版の `InvisiblePayloadScanner-*.zip` をダウン
 
 `.cmd` は、zip展開後のローカルPowerShellスクリプトを起動するために `-ExecutionPolicy Bypass` を指定しています。これはこのツール同梱の `Start-InvisiblePayloadScanner.ps1` だけを実行するための限定措置です。出所不明の `.cmd` や `.ps1` に同じ扱いを広げないでください。
 
+### ダウンロードしたzipが本物か確認する
+
+展開する前に、PowerShellで次の1行を実行してください（ファイル名はダウンロードしたバージョンに合わせます）:
+
+```powershell
+Get-FileHash .\InvisiblePayloadScanner-v0.4.0.zip -Algorithm SHA256
+```
+
+表示された英数字が、GitHub Releaseページに記載されたSHA-256と同じなら本物です。違う場合は使わずに、Releaseページからダウンロードし直してください。
+
+また、ツール起動時のPowerShellウィンドウには `Script SHA-256:` としてスクリプト自身のハッシュが表示されます。コード署名（Authenticode）は将来の検討課題で、現時点ではこのSHA-256照合が確認手段です。
+
 このツールは外部サーバにスキャン内容を送信しません。指定したフォルダ配下のファイルをローカルで読み取り、不可視Unicodeや自動実行設定などのルールに照らして確認します。
 
 ## このツールの位置づけ
