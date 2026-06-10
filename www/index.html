@@ -616,6 +616,7 @@
         "context.scannerRuleFile": "文脈: このスキャナの同梱ルールファイル内です。IoC文字列が含まれるのは通常です。",
         "context.scannerSource": "文脈: このスキャナ本体のソース内です。検知用IoCや自己診断用文字列が含まれることがあります。",
         "context.scannerSelftest": "文脈: このスキャナのセルフテスト用フォルダ内です。検知確認用の危険サンプルです。",
+        "context.scannerReport": "文脈: このスキャナが保存した過去のスキャン結果ファイルです。検出記録の文字列が含まれるのは通常です。",
         "context.aiAgentInstruction": "文脈: AIエージェント向けのプロジェクト指示ファイルです。自動実行そのものではありませんが、エージェントに作業させる前に内容を確認してください。",
         "action.stopBeforeRun": "対応: 実行・install・信頼済みオープンの前に止まって確認してください。",
         "action.stopBeforeRunningCi": "対応: CI、PR、repository automationを有効化または実行する前に止まって確認してください。",
@@ -746,6 +747,7 @@
         "context.scannerRuleFile": "Context: this is a bundled scanner rule file. IOC strings are expected here.",
         "context.scannerSource": "Context: this is scanner source code. It may contain detection IOCs or self-test strings.",
         "context.scannerSelftest": "Context: this is a scanner self-test folder. It contains intentionally suspicious samples for detection checks.",
+        "context.scannerReport": "Context: this is a saved scan result file from this scanner. Recorded detection strings are expected here.",
         "context.aiAgentInstruction": "Context: this is an AI-agent instruction file. It is not auto-executed by itself, but review it before letting an agent work on the project.",
         "action.stopBeforeRun": "Action: stop before running, installing, or opening this project as trusted.",
         "action.stopBeforeRunningCi": "Action: stop before enabling or running CI, pull requests, or repository automation.",
@@ -1011,6 +1013,9 @@
       if (context === "scanner-selftest") {
         return t("context.scannerSelftest");
       }
+      if (context === "scanner-report") {
+        return t("context.scannerReport");
+      }
       if (context === "ai-agent-instruction") {
         return t("context.aiAgentInstruction");
       }
@@ -1066,7 +1071,7 @@
     }
 
     const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
-    const FP_LEANING_CONTEXTS = ["documentation", "scanner-rule-file", "scanner-source", "scanner-selftest"];
+    const FP_LEANING_CONTEXTS = ["documentation", "scanner-rule-file", "scanner-source", "scanner-selftest", "scanner-report"];
 
     function getSeverityRank(severity) {
       const rank = SEVERITY_ORDER[(severity || "info").toLowerCase()];
