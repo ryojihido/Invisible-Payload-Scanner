@@ -20,26 +20,29 @@ GitHubから落としたプロジェクトを、そのまま動かす前に確�
 
 ## リリースの種類
 
-Invisible Payload Scannerには、現在大きく3つのリリースがあります。
+Invisible Payload Scannerには、現在大きく4つのリリースがあります。
 
 - `v0.1.0 Classic`: 不可視Unicodeの確認に絞った最初のリリース
 - `v0.2.0 Safety Pre-Scan`: Classicに加えて、npmサプライチェーンIoCやエディタ/AIエージェントの自動実行設定も確認するリリース
+- `v0.3.1 Context-Aware Triage`: v0.3.0の確認範囲を維持しつつ、root直下のGitHub Actions workflowと、SDK/依存部品/上流コピー内のネストしたworkflowを文脈で分けて表示するリリース
 - `v0.3.0 Contagious Interview Pre-Scan`: v0.2.0に加えて、VS Code/Cursorでフォルダを開いた時に動く設定、npm install時のlifecycle script、GitHub Actions workflowの危険コマンド候補、Git hook系ローダー、safe-patternsによる優先度調整を確認するリリース
 
-既存の `v0.1.0` はそのまま残し、リリース済みzipは差し替えません。新しい確認範囲が必要な場合は `v0.3.0` 以降を使ってください。
+既存の `v0.1.0` はそのまま残し、リリース済みzipは差し替えません。新しい確認範囲が必要な場合は `v0.3.1` 以降を使ってください。
 
 ## どれを使えばいい？
 
-通常は最新版の **v0.3.0 Contagious Interview Pre-Scan** を使ってください。
+通常は最新版の **v0.3.1 Context-Aware Triage** を使ってください。
 
+- **v0.3.1 Context-Aware Triage**
+  通常はこちらを使います。v0.3.0の確認に加えて、危険シグナルそのものと、今すぐ止まるべき対応優先度を分けて表示します。UIは日本語/英語を切り替えられます。
 - **v0.3.0 Contagious Interview Pre-Scan**
-  通常はこちらを使います。不可視Unicodeだけでなく、`npm install`、VS Code/Cursor、AIエージェント、Git hookまわりの危険そうな設定もまとめて確認します。
+  不可視Unicodeだけでなく、`npm install`、VS Code/Cursor、AIエージェント、Git hookまわりの危険そうな設定もまとめて確認します。
 - **v0.1.0 Classic: Invisible Unicode Scan**
   不可視Unicode、GlassWorm系、Trojan Source系の確認に絞った古い軽量モードです。
 - **v0.2.0 Safety Pre-Scan**
   Classicの内容に加えて、npmサプライチェーンIoC、VS Code自動実行設定、Claude Code / AIエージェントのhooks、install scriptsを確認します。
 
-Web UIでは、まず `両方まとめて確認（v0.3おすすめ）` のまま使ってください。不可視Unicodeだけ確認したい時だけ、スキャン種別を切り替えます。
+Web UIでは、まず `両方まとめて確認（v0.3.1おすすめ）` のまま使ってください。不可視Unicodeだけ確認したい時だけ、スキャン種別を切り替えます。
 
 過去リリースの `v0.1.0` は、不可視Unicode専用のClassic版として残します。リリース済みzipは差し替えません。
 
@@ -76,7 +79,7 @@ CLIに慣れている人なら既存のコマンドライン型スキャナや�
 1. GitHubなどから入手したzipを展開します。まだ `npm install`、ビルド、起動はしないでください。
 2. 展開したこのツールのフォルダで、`Start-InvisiblePayloadScanner.cmd` をダブルクリックします。
 3. ブラウザが開いたら、確認したいプロジェクトフォルダのパスを入力します。
-4. 最初は設定を変えず、スキャン種別は `両方まとめて確認（v0.3おすすめ）` のままにします。
+4. 最初は設定を変えず、スキャン種別は `両方まとめて確認（v0.3.1おすすめ）` のままにします。
 5. `スキャン開始` を押します。
 6. `危険` や `高リスク` が出た場合は、そのプロジェクトを実行せず、結果のファイル名と説明を確認してください。
 
@@ -258,6 +261,8 @@ safe-patternsは警告を完全に消すものではありません。危険なd
 この機能は、パッケージ名だけで悪性と断定しません。`@tanstack/` のような名前空間一致は注意表示であり、危険度が上がるのは既知の悪性バージョン、既知IoC文字列、自動実行設定、install scriptの危険語などが重なった場合です。
 
 v0.3では、単独の文字列一致よりも組み合わせを重視します。たとえば `.vscode/tasks.json` や `.cursor/tasks.json` の `runOn: folderOpen` が `npm install` / `npm i` / `pnpm i` / `yarn install` / `bun i` などを起動し、同じプロジェクトの `package.json` に `prepare` / `postinstall` などのinstall lifecycle scriptがある場合は、複合リスクとして追加表示します。
+
+v0.3.1では、検出語そのものの危険度を `signalSeverity` として残しながら、実際の対応優先度を `severity` / `actionability` / `pathContext` で分けます。JSONの `summary` は表示上の対応優先度、`signalSummary` は元の検出シグナルの集計です。スキャン対象ルート直下の `.github/workflows/*.yml` は従来どおり強く扱います。一方、SDK、依存部品、上流コピーの内側にあるネストした `.github/workflows/*.yml` は、通常のローカル実行では動かないため、低めの対応優先度として表示します。検出を消すのではなく、CIを有効化する前の確認材料として残します。
 
 `.env` や `.npmrc` は秘密情報を含む可能性があるため、検出結果では抜粋そのものを隠し、トークンらしい文字列もマスクします。JSON結果を公開する場合も、ローカルパス、ユーザー名、プロジェクト名が含まれていないか確認してください。
 

@@ -44,6 +44,30 @@
       gap: 10px;
       align-items: center;
     }
+    .header-main {
+      flex: 1 1 auto;
+      min-width: 260px;
+    }
+    .language-switch {
+      display: inline-flex;
+      gap: 4px;
+      padding: 3px;
+      border: 1px solid rgba(255,255,255,.28);
+      border-radius: 8px;
+      background: rgba(255,255,255,.08);
+    }
+    .language-switch button {
+      min-width: 42px;
+      padding: 6px 9px;
+      border-radius: 6px;
+      background: transparent;
+      color: #cbd5e1;
+      font-size: 12px;
+    }
+    .language-switch button.active {
+      background: #fff;
+      color: #172033;
+    }
     h1 {
       margin: 0;
       font-size: 22px;
@@ -296,91 +320,97 @@
 <body>
   <header>
     <div class="title-row">
-      <h1>Invisible Payload Scanner</h1>
-      <span class="release-badge">v0.3 Contagious Interview Pre-Scan</span>
+      <div class="header-main">
+        <h1>Invisible Payload Scanner</h1>
+        <div class="subtitle" data-i18n="subtitle">不可視Unicode + npm / エディタ自動実行 / Git hook の実行前チェック</div>
+      </div>
+      <span class="release-badge">v0.3.1 Context-Aware Triage</span>
+      <div class="language-switch" aria-label="Language">
+        <button id="langJa" type="button" data-lang="ja">JA</button>
+        <button id="langEn" type="button" data-lang="en">EN</button>
+      </div>
     </div>
-    <div class="subtitle">不可視Unicode + npm / エディタ自動実行 / Git hook の実行前チェック</div>
   </header>
   <main>
     <section>
       <div class="grid">
         <div class="field span-12">
-          <label for="rootPath">スクリーニング対象フォルダ</label>
-          <div class="hint">自動読み込みはしません。検知したいフォルダパスをここに入力してください。</div>
-          <input id="rootPath" type="text" placeholder="例: C:\path\to\project または D:\work\repo">
-          <div class="hint">エクスプローラーで対象フォルダを開き、アドレスバーのパスをコピーして貼り付けてください。引用符つきでも使えます。</div>
-          <div class="hint">このツールは指定フォルダ配下のファイルを読み取り検索します。検索対象ファイルは実行しません。</div>
+          <label for="rootPath" data-i18n="rootPath.label">スクリーニング対象フォルダ</label>
+          <div class="hint" data-i18n="rootPath.hint1">自動読み込みはしません。検知したいフォルダパスをここに入力してください。</div>
+          <input id="rootPath" type="text" placeholder="例: C:\path\to\project または D:\work\repo" data-i18n-placeholder="rootPath.placeholder">
+          <div class="hint" data-i18n="rootPath.hint2">エクスプローラーで対象フォルダを開き、アドレスバーのパスをコピーして貼り付けてください。引用符つきでも使えます。</div>
+          <div class="hint" data-i18n="rootPath.hint3">このツールは指定フォルダ配下のファイルを読み取り検索します。検索対象ファイルは実行しません。</div>
         </div>
-        <div class="span-12 notice">通常はこのままスキャンできます。下の詳細設定は、対象ファイルを絞りたい時や誤検知を減らしたい時だけ変更してください。</div>
+        <div class="span-12 notice" data-i18n="notice.default">通常はこのままスキャンできます。下の詳細設定は、対象ファイルを絞りたい時や誤検知を減らしたい時だけ変更してください。</div>
         <div class="field span-4">
-          <label for="scanMode">スキャン種別</label>
+          <label for="scanMode" data-i18n="scanMode.label">スキャン種別</label>
           <select id="scanMode">
-            <option value="full-safety-pre-scan">両方まとめて確認（v0.3おすすめ）</option>
-            <option value="invisible-unicode">不可視Unicodeだけ確認</option>
-            <option value="supply-chain-ioc">npm / エディタ / AIエージェント設定だけ確認</option>
+            <option value="full-safety-pre-scan" data-i18n="scanMode.full">両方まとめて確認（v0.3.1おすすめ）</option>
+            <option value="invisible-unicode" data-i18n="scanMode.invisible">不可視Unicodeだけ確認</option>
+            <option value="supply-chain-ioc" data-i18n="scanMode.supply">npm / エディタ / AIエージェント設定だけ確認</option>
           </select>
-          <div class="hint">Safety Pre-Scanは、不可視Unicodeに加えて既知IoC、folderOpen、install script、Git hookも確認します。</div>
+          <div class="hint" data-i18n="scanMode.hint">Safety Pre-Scanは、不可視Unicodeに加えて既知IoC、folderOpen、install script、Git hookも確認します。</div>
         </div>
         <div class="field span-4">
-          <label for="filter">ファイル名フィルタ</label>
+          <label for="filter" data-i18n="filter.label">ファイル名フィルタ</label>
           <input id="filter" type="text" value="*.js;*.ts;*.mjs;*.cjs;*.jsx;*.tsx;*.json;*.ps1;*.cmd;*.bat;*.py;*.go;*.rs;*.java;*.cs;*.php;*.rb;*.sh;*.yml;*.yaml;*.toml;*.md">
-          <div class="hint">`;` 区切りで複数指定できます。全件なら `*`。</div>
+          <div class="hint" data-i18n="filter.hint">`;` 区切りで複数指定できます。全件なら `*`。</div>
         </div>
         <div class="field span-4">
-          <label for="ruleId">検索ルール</label>
+          <label for="ruleId" data-i18n="rule.label">検索ルール</label>
           <select id="ruleId">
-            <option value="glassworm_variation_selectors">GlassWorm既知: 異体字セレクタ連続</option>
-            <option value="glassworm_decoder_pattern">GlassWorm系: 可視デコーダ兆候</option>
-            <option value="zero_width_controls">ゼロ幅制御文字連続</option>
-            <option value="bidi_controls">Trojan Source系: 双方向制御文字</option>
-            <option value="hangul_filler">不可視識別子: Hangul filler</option>
-            <option value="custom">カスタム正規表現</option>
+            <option value="glassworm_variation_selectors" data-i18n="rule.glasswormSelectors">GlassWorm既知: 異体字セレクタ連続</option>
+            <option value="glassworm_decoder_pattern" data-i18n="rule.decoder">GlassWorm系: 可視デコーダ兆候</option>
+            <option value="zero_width_controls" data-i18n="rule.zeroWidth">ゼロ幅制御文字連続</option>
+            <option value="bidi_controls" data-i18n="rule.bidi">Trojan Source系: 双方向制御文字</option>
+            <option value="hangul_filler" data-i18n="rule.hangul">不可視識別子: Hangul filler</option>
+            <option value="custom" data-i18n="rule.custom">カスタム正規表現</option>
           </select>
-          <div class="hint">既定は不可視ペイロード本体の検出です。デコーダ兆候や別種の不可視文字は必要に応じて選びます。</div>
+          <div class="hint" data-i18n="rule.hint">既定は不可視ペイロード本体の検出です。デコーダ兆候や別種の不可視文字は必要に応じて選びます。</div>
         </div>
         <div class="field span-4">
-          <label for="minRun">連続検出しきい値</label>
+          <label for="minRun" data-i18n="minRun.label">連続検出しきい値</label>
           <input id="minRun" type="number" min="1" max="1000" value="8">
-          <div class="hint">一次スクリーニングは8以上、広いPC全体スキャンなら16以上推奨です。</div>
+          <div class="hint" data-i18n="minRun.hint">一次スクリーニングは8以上、広いPC全体スキャンなら16以上推奨です。</div>
         </div>
         <div class="field span-6">
-          <label for="excludeDirs">除外ディレクトリ名</label>
+          <label for="excludeDirs" data-i18n="excludeDirs.label">除外ディレクトリ名</label>
           <input id="excludeDirs" type="text" value=".git;dist;build;coverage;.cache;.next;.nuxt;out;.tmp;temp;_selftest;_compound_selftest;.edge-preview-profile">
-          <div class="hint">`;` 区切り。速度優先なら `node_modules;dist;build` などを追加。</div>
+          <div class="hint" data-i18n="excludeDirs.hint">`;` 区切り。速度優先なら `node_modules;dist;build` などを追加。</div>
         </div>
         <div class="field span-3">
-          <label for="excludeFiles">除外ファイル名</label>
+          <label for="excludeFiles" data-i18n="excludeFiles.label">除外ファイル名</label>
           <input id="excludeFiles" type="text" value="README.md;*.md">
-          <div class="hint">説明文ファイル由来の絵文字誤検知を減らします。</div>
+          <div class="hint" data-i18n="excludeFiles.hint">説明文ファイル由来の絵文字誤検知を減らします。</div>
         </div>
         <div class="field span-3">
-          <label for="maxFileSizeMb">最大ファイルサイズMB</label>
+          <label for="maxFileSizeMb" data-i18n="maxFileSize.label">最大ファイルサイズMB</label>
           <input id="maxFileSizeMb" type="number" min="1" max="100" value="20">
-          <div class="hint">公開版では安全のため100MB以下に制限しています。</div>
+          <div class="hint" data-i18n="maxFileSize.hint">公開版では安全のため100MB以下に制限しています。</div>
         </div>
         <div class="field span-12">
           <label>
             <input id="supplyNodeModulesFullScan" type="checkbox" style="width: auto; margin-right: 6px;">
-            node_modules 全体も詳しく確認する
+            <span data-i18n="nodeModules.label">node_modules 全体も詳しく確認する</span>
           </label>
-          <div class="hint">通常はオフのままで、node_modules内は package.json だけ確認します。オンにすると時間がかかります。</div>
+          <div class="hint" data-i18n="nodeModules.hint">通常はオフのままで、node_modules内は package.json だけ確認します。オンにすると時間がかかります。</div>
         </div>
         <div id="customPatternWrap" class="field span-12 hidden">
-          <label for="customPattern">カスタム正規表現</label>
+          <label for="customPattern" data-i18n="customPattern.label">カスタム正規表現</label>
           <textarea id="customPattern" spellcheck="false">([\uFE00-\uFE0F]|\uDB40[\uDD00-\uDDEF]){3,}</textarea>
         </div>
       </div>
       <div class="actions">
-        <button id="scanButton" class="primary" type="button">スキャン開始</button>
-        <button id="exportButton" type="button" disabled>結果をJSON保存</button>
-        <button id="stopButton" type="button">サーバ停止</button>
+        <button id="scanButton" class="primary" type="button" data-i18n="buttons.scan">スキャン開始</button>
+        <button id="exportButton" type="button" disabled data-i18n="buttons.export">結果をJSON保存</button>
+        <button id="stopButton" type="button" data-i18n="buttons.stop">サーバ停止</button>
         <div id="status" class="status"></div>
       </div>
-      <div class="hint">結果JSONは、あとで見返す、詳しい人に相談する、GitHub issueやSecurity Advisoryを確認する時の控えとして使えます。共有や公開の前に、ローカルパス、ユーザー名、プロジェクト名が含まれていないか確認してください。</div>
-      <div class="hint">長いスキャンを中止したい場合は、起動したPowerShellウィンドウを閉じてください。</div>
+      <div class="hint" data-i18n="export.hint">結果JSONは、あとで見返す、詳しい人に相談する、GitHub issueやSecurity Advisoryを確認する時の控えとして使えます。共有や公開の前に、ローカルパス、ユーザー名、プロジェクト名が含まれていないか確認してください。</div>
+      <div class="hint" data-i18n="cancel.hint">長いスキャンを中止したい場合は、起動したPowerShellウィンドウを閉じてください。</div>
       <div id="progressWrap" class="progress-wrap">
         <div class="progress-top">
-          <span id="progressPhase">待機中</span>
+          <span id="progressPhase" data-i18n="progress.idle">待機中</span>
           <span id="progressPercent">0%</span>
         </div>
         <div class="progress-track">
@@ -393,7 +423,7 @@
     <section id="resultSection" class="hidden">
       <div id="summary" class="summary"></div>
       <div id="resultGuide" class="notice"></div>
-      <div id="limitAlert" class="alert">結果が多いため、先頭5000件で表示を止めています。対象フォルダまたはフィルタを絞って再実行してください。</div>
+      <div id="limitAlert" class="alert" data-i18n="alerts.limit">結果が多いため、先頭5000件で表示を止めています。対象フォルダまたはフィルタを絞って再実行してください。</div>
       <div id="errorAlert" class="alert"></div>
       <div class="results-table-wrap">
         <table class="results-table">
@@ -407,12 +437,12 @@
           </colgroup>
           <thead>
             <tr>
-              <th>ファイル</th>
-              <th>位置</th>
-              <th>重要度</th>
-              <th>カテゴリ</th>
-              <th>検出語</th>
-              <th>説明</th>
+              <th data-i18n="table.file">ファイル</th>
+              <th data-i18n="table.location">位置</th>
+              <th data-i18n="table.severity">重要度</th>
+              <th data-i18n="table.category">カテゴリ</th>
+              <th data-i18n="table.match">検出語</th>
+              <th data-i18n="table.detail">説明</th>
             </tr>
           </thead>
           <tbody id="resultsBody"></tbody>
@@ -425,6 +455,261 @@
     const API_TOKEN = "__API_TOKEN__";
     const $ = (id) => document.getElementById(id);
     let lastResult = null;
+    let currentLang = "ja";
+
+    const I18N = {
+      ja: {
+        "subtitle": "不可視Unicode + npm / エディタ自動実行 / Git hook の実行前チェック",
+        "rootPath.label": "スクリーニング対象フォルダ",
+        "rootPath.hint1": "自動読み込みはしません。検知したいフォルダパスをここに入力してください。",
+        "rootPath.placeholder": "例: C:\\path\\to\\project または D:\\work\\repo",
+        "rootPath.hint2": "エクスプローラーで対象フォルダを開き、アドレスバーのパスをコピーして貼り付けてください。引用符つきでも使えます。",
+        "rootPath.hint3": "このツールは指定フォルダ配下のファイルを読み取り検索します。検索対象ファイルは実行しません。",
+        "notice.default": "通常はこのままスキャンできます。下の詳細設定は、対象ファイルを絞りたい時や誤検知を減らしたい時だけ変更してください。",
+        "scanMode.label": "スキャン種別",
+        "scanMode.full": "両方まとめて確認（v0.3.1おすすめ）",
+        "scanMode.invisible": "不可視Unicodeだけ確認",
+        "scanMode.supply": "npm / エディタ / AIエージェント設定だけ確認",
+        "scanMode.hint": "Safety Pre-Scanは、不可視Unicodeに加えて既知IoC、folderOpen、install script、Git hookも確認します。",
+        "filter.label": "ファイル名フィルタ",
+        "filter.hint": "`;` 区切りで複数指定できます。全件なら `*`。",
+        "rule.label": "検索ルール",
+        "rule.glasswormSelectors": "GlassWorm既知: 異体字セレクタ連続",
+        "rule.decoder": "GlassWorm系: 可視デコーダ兆候",
+        "rule.zeroWidth": "ゼロ幅制御文字連続",
+        "rule.bidi": "Trojan Source系: 双方向制御文字",
+        "rule.hangul": "不可視識別子: Hangul filler",
+        "rule.custom": "カスタム正規表現",
+        "rule.hint": "既定は不可視ペイロード本体の検出です。デコーダ兆候や別種の不可視文字は必要に応じて選びます。",
+        "minRun.label": "連続検出しきい値",
+        "minRun.hint": "一次スクリーニングは8以上、広いPC全体スキャンなら16以上推奨です。",
+        "excludeDirs.label": "除外ディレクトリ名",
+        "excludeDirs.hint": "`;` 区切り。速度優先なら `node_modules;dist;build` などを追加。",
+        "excludeFiles.label": "除外ファイル名",
+        "excludeFiles.hint": "説明文ファイル由来の絵文字誤検知を減らします。",
+        "maxFileSize.label": "最大ファイルサイズMB",
+        "maxFileSize.hint": "公開版では安全のため100MB以下に制限しています。",
+        "nodeModules.label": "node_modules 全体も詳しく確認する",
+        "nodeModules.hint": "通常はオフのままで、node_modules内は package.json だけ確認します。オンにすると時間がかかります。",
+        "customPattern.label": "カスタム正規表現",
+        "buttons.scan": "スキャン開始",
+        "buttons.export": "結果をJSON保存",
+        "buttons.stop": "サーバ停止",
+        "export.hint": "結果JSONは、あとで見返す、詳しい人に相談する、GitHub issueやSecurity Advisoryを確認する時の控えとして使えます。共有や公開の前に、ローカルパス、ユーザー名、プロジェクト名が含まれていないか確認してください。",
+        "cancel.hint": "長いスキャンを中止したい場合は、起動したPowerShellウィンドウを閉じてください。",
+        "progress.idle": "待機中",
+        "alerts.limit": "結果が多いため、先頭5000件で表示を止めています。対象フォルダまたはフィルタを絞って再実行してください。",
+        "table.file": "ファイル",
+        "table.location": "位置",
+        "table.severity": "重要度",
+        "table.category": "カテゴリ",
+        "table.match": "検出語",
+        "table.detail": "説明",
+        "status.needRoot": "対象フォルダを入力してください。",
+        "status.scanning": "スキャン中です。大きなフォルダでは少し時間がかかります。",
+        "status.hasFindings": "検出があります。詳細を確認してください。",
+        "status.noFindings": "検出はありませんでした。",
+        "status.errorPrefix": "エラー: ",
+        "status.serverStopped": "ローカルサーバを停止しました。このタブは閉じて大丈夫です。",
+        "status.stopFailed": "停止要求を送信できませんでした。PowerShellウィンドウを閉じてください。",
+        "alerts.readErrors": "読み取りエラー {count} 件。一部の保護フォルダまたは壊れたファイルはスキップされています。",
+        "alerts.ruleFallback": "同梱IOCルールを読めなかったため、簡易ルールだけで確認しています。",
+        "verdict.detected": "検出あり",
+        "verdict.clean": "検出なし",
+        "metrics.verdict": "判定",
+        "metrics.findings": "検出件数",
+        "metrics.scanned": "走査ファイル",
+        "metrics.seconds": "秒",
+        "metrics.signalCritical": "Signal Critical",
+        "metrics.signalHigh": "Signal High",
+        "detail.snippet": "周辺: {snippet}",
+        "context.githubWorkflow": "文脈: スキャン対象ルート直下のGitHub Actions workflowです。CIやPRで動く可能性があるため、未知のプロジェクトでは強めに確認してください。",
+        "context.nestedGithubWorkflow": "文脈: 依存部品、SDK、上流コピーなどの内側にあるGitHub Actions workflowです。通常のローカル実行では動きませんが、その部品のCIを有効化する前に確認してください。",
+        "context.localCacheOrSdk": "文脈: .localなどローカルSDK/キャッシュ寄りのフォルダ内です。通常の作業対象直下の検出とは分けて確認してください。",
+        "context.editorExtension": "文脈: エディタ/AIツールの拡張機能フォルダ内です。正規の拡張機能が持つ開発用scriptの可能性があります。未知のGitHubプロジェクト直下の検出とは分けて確認してください。",
+        "context.nodeModules": "文脈: node_modules内です。展開済み依存パッケージとして確認してください。",
+        "context.documentation": "文脈: README/docsなど説明文寄りです。実行経路に乗るか確認してください。",
+        "context.scannerRuleFile": "文脈: このスキャナの同梱ルールファイル内です。IoC文字列が含まれるのは通常です。",
+        "context.scannerSource": "文脈: このスキャナ本体のソース内です。検知用IoCや自己診断用文字列が含まれることがあります。",
+        "context.scannerSelftest": "文脈: このスキャナのセルフテスト用フォルダ内です。検知確認用の危険サンプルです。",
+        "context.aiAgentInstruction": "文脈: AIエージェント向けのプロジェクト指示ファイルです。自動実行そのものではありませんが、エージェントに作業させる前に内容を確認してください。",
+        "action.stopBeforeRun": "対応: 実行・install・信頼済みオープンの前に止まって確認してください。",
+        "action.stopBeforeRunningCi": "対応: CI、PR、repository automationを有効化または実行する前に止まって確認してください。",
+        "action.reviewBeforeRunningCi": "対応: このネスト部品のCIを動かす予定がある場合は事前確認してください。",
+        "action.reviewBeforeTrust": "対応: プロジェクトを信頼する前に内容を確認してください。",
+        "action.contextualReview": "対応: 文脈依存の参考情報です。実行経路に乗るか確認してください。",
+        "action.informational": "対応: 参考情報です。未知のプロジェクトでは念のため確認してください。",
+        "triage.nestedWorkflow": "トリアージ: SDK、vendored dependency、上流コピー内のネストしたGitHub Actions workflowです。ローカル実行時には通常動きませんが、その部品のCIを有効化する前に確認してください。",
+        "signal.lowered": "検出シグナル: {severity}相当の文字列を含みますが、場所の文脈により表示優先度を下げています。",
+        "severity.critical": "危険",
+        "severity.high": "高リスク",
+        "severity.medium": "要注意",
+        "severity.low": "低",
+        "severity.info": "参考",
+        "guide.noFindings": "検出はありませんでした。ただし、この結果は完全な安全保証ではありません。未知のマルウェア、外部取得コード、すべての悪性パッケージまでは検出できません。",
+        "guide.editorExtension": " なお、エディタ/AIツールの拡張機能フォルダ内の検出は、正規拡張機能のscriptである可能性があります。拡張機能名、発行元、意図して入れたものかを確認し、未知のGitHubプロジェクト直下の検出とは分けて判断してください。",
+        "guide.allowlisted": " safe-patternsに一致して参考扱いになったinstall scriptも、未知のリポジトリでは念のため内容を見てください。",
+        "guide.scannerInternal": " このスキャナ自身のルールファイル、ソース、セルフテスト内の検出は、検知用文字列が含まれるため参考扱いです。未知のプロジェクト直下の検出とは分けて見てください。",
+        "guide.agentInstruction": " AIエージェント向け指示ファイルは実行ファイルではありませんが、エージェントに自動作業させる前の確認対象です。",
+        "guide.nestedWorkflow": " ネストしたGitHub Actions workflowの検出は、上流SDKや依存部品に同梱されたCI設定の可能性があります。ローカル実行の停止理由とは分け、CIを動かす時の確認材料として扱ってください。",
+        "guide.signalSummary": " 表示上の重要度は対応優先度です。元の検出シグナルは Critical {critical} 件、High {high} 件です。",
+        "guide.critical": "危険レベルがあります。このプロジェクトは実行しないでください。簡易対策: 1. npm install / ビルドを止める 2. VS CodeやCursorはRestricted Modeで開くか、まだ開かない 3. AIエージェントに自動修正させない 4. 入手元と公式アドバイザリを確認 5. 既に実行済みならGitHub/npm/APIキー/SSH鍵などのローテーションを検討してください。Node.jsプロジェクトでは、追加防御としてpnpmのminimumReleaseAge、blockExoticSubdeps、allowBuildsも検討できます。",
+        "guide.high": "高リスクがあります。簡易対策: 該当ファイルを開いて内容を確認し、意味が分からないコマンドやinstall scriptがある場合は実行しないでください。VS CodeやCursorはRestricted Mode、AIエージェントは自動実行なしで扱うのが安全です。Node.jsプロジェクトでは、pnpmのminimumReleaseAgeやinstall scriptの許可制も追加防御になります。",
+        "guide.medium": "要注意があります。簡易対策: パッケージ名、バージョン、lockfile、tasks.json、package.json scriptsの該当箇所を確認してください。名前だけでは悪性と断定できません。不明な場合は依存関係を更新・インストールせず、一旦保留してください。",
+        "guide.low": "検出があります。参考/低は注意喚起寄りです。簡易対策: 実行される場所にあるか、説明文やルールファイル内の記載かを確認してください。判断できない場合は実行前に詳しい人へ結果JSONを見せてください。",
+        "friendly.tooManyCandidates": "候補ファイルが上限を超えたため停止しました。ユーザーフォルダ全体や大きな親フォルダではなく、GitHubから展開したプロジェクトフォルダ単位でスキャンしてください。必要なら除外ディレクトリに node_modules;AppData;Windows;Program Files などを追加してください。",
+        "stream.noResult": "スキャン結果を受信できませんでした。",
+        "progress.enumerate": "候補ファイルを数えています",
+        "progress.scan": "ファイルを確認しています",
+        "progress.done": "完了",
+        "progress.error": "停止しました",
+        "progress.running": "動作中",
+        "progress.preparing": "準備中",
+        "progress.errorShort": "エラー",
+        "progress.counts": "候補 {candidateFiles} 件 / 走査 {scannedFiles} 件 / 検出 {matchCount} 件"
+      },
+      en: {
+        "subtitle": "Pre-run check for invisible Unicode, npm, editor auto-run, and Git hooks",
+        "rootPath.label": "Folder to screen",
+        "rootPath.hint1": "Nothing is loaded automatically. Paste the folder path you want to check.",
+        "rootPath.placeholder": "Example: C:\\path\\to\\project or D:\\work\\repo",
+        "rootPath.hint2": "Open the target folder in File Explorer, copy the address bar path, and paste it here. Quoted paths are accepted.",
+        "rootPath.hint3": "This tool reads and searches files under the selected folder. It does not execute target files.",
+        "notice.default": "You can usually scan with the defaults. Change advanced settings only when you need to narrow the target or reduce noise.",
+        "scanMode.label": "Scan type",
+        "scanMode.full": "Check both together (v0.3.1 recommended)",
+        "scanMode.invisible": "Invisible Unicode only",
+        "scanMode.supply": "npm / editor / AI-agent settings only",
+        "scanMode.hint": "Safety Pre-Scan checks known IOCs, folderOpen tasks, install scripts, and Git hooks in addition to invisible Unicode.",
+        "filter.label": "Filename filter",
+        "filter.hint": "Separate multiple patterns with `;`. Use `*` for all files.",
+        "rule.label": "Search rule",
+        "rule.glasswormSelectors": "Known GlassWorm: variation selector run",
+        "rule.decoder": "GlassWorm-like: visible decoder signal",
+        "rule.zeroWidth": "Zero-width control run",
+        "rule.bidi": "Trojan Source-like: bidi controls",
+        "rule.hangul": "Invisible identifier: Hangul filler",
+        "rule.custom": "Custom regular expression",
+        "rule.hint": "The default detects invisible payload bodies. Choose decoder signals or other invisible characters when needed.",
+        "minRun.label": "Run-length threshold",
+        "minRun.hint": "Use 8 or higher for first-pass screening. Use 16 or higher for broad PC-wide scans.",
+        "excludeDirs.label": "Excluded directory names",
+        "excludeDirs.hint": "Separate with `;`. Add entries such as `node_modules;dist;build` for speed.",
+        "excludeFiles.label": "Excluded filenames",
+        "excludeFiles.hint": "Reduces emoji-related noise from documentation files.",
+        "maxFileSize.label": "Max file size MB",
+        "maxFileSize.hint": "The public build caps this at 100 MB for safety.",
+        "nodeModules.label": "Scan all of node_modules in detail",
+        "nodeModules.hint": "Usually leave this off. With it off, node_modules only checks package.json files. Turning it on can take longer.",
+        "customPattern.label": "Custom regular expression",
+        "buttons.scan": "Start scan",
+        "buttons.export": "Save results as JSON",
+        "buttons.stop": "Stop server",
+        "export.hint": "The JSON result is useful for later review, asking a technical person, or checking GitHub issues and security advisories. Before sharing or publishing it, check for local paths, user names, and project names.",
+        "cancel.hint": "To cancel a long scan, close the PowerShell window that launched this tool.",
+        "progress.idle": "Idle",
+        "alerts.limit": "There are many results, so display stopped at the first 5000. Narrow the folder or filters and scan again.",
+        "table.file": "File",
+        "table.location": "Location",
+        "table.severity": "Priority",
+        "table.category": "Category",
+        "table.match": "Matched term",
+        "table.detail": "Details",
+        "status.needRoot": "Enter a target folder.",
+        "status.scanning": "Scanning. Large folders can take a while.",
+        "status.hasFindings": "Findings detected. Review the details.",
+        "status.noFindings": "No findings detected.",
+        "status.errorPrefix": "Error: ",
+        "status.serverStopped": "The local server has stopped. You can close this tab.",
+        "status.stopFailed": "Could not send the stop request. Close the PowerShell window.",
+        "alerts.readErrors": "Read errors: {count}. Some protected folders or broken files were skipped.",
+        "alerts.ruleFallback": "Bundled IOC rules could not be loaded, so only minimal fallback rules are active.",
+        "verdict.detected": "Findings",
+        "verdict.clean": "No findings",
+        "metrics.verdict": "Verdict",
+        "metrics.findings": "Findings",
+        "metrics.scanned": "Scanned files",
+        "metrics.seconds": "Seconds",
+        "metrics.signalCritical": "Signal Critical",
+        "metrics.signalHigh": "Signal High",
+        "detail.snippet": "Nearby: {snippet}",
+        "context.githubWorkflow": "Context: this is a GitHub Actions workflow directly under the scanned root. It may run in CI or pull requests, so review it carefully for unknown projects.",
+        "context.nestedGithubWorkflow": "Context: this GitHub Actions workflow is nested inside a dependency, SDK, or copied upstream component. It normally does not run during local project execution, but review it before enabling CI for that component.",
+        "context.localCacheOrSdk": "Context: this is inside a local SDK/cache-like folder such as .local. Review it separately from findings directly under the working project.",
+        "context.editorExtension": "Context: this is inside an editor or AI-tool extension folder. Legitimate extensions may include development scripts, so check the extension name, publisher, and whether you installed it intentionally.",
+        "context.nodeModules": "Context: this is inside node_modules. Treat it as an unpacked dependency package.",
+        "context.documentation": "Context: this looks like README/docs text. Check whether it is on an execution path.",
+        "context.scannerRuleFile": "Context: this is a bundled scanner rule file. IOC strings are expected here.",
+        "context.scannerSource": "Context: this is scanner source code. It may contain detection IOCs or self-test strings.",
+        "context.scannerSelftest": "Context: this is a scanner self-test folder. It contains intentionally suspicious samples for detection checks.",
+        "context.aiAgentInstruction": "Context: this is an AI-agent instruction file. It is not auto-executed by itself, but review it before letting an agent work on the project.",
+        "action.stopBeforeRun": "Action: stop before running, installing, or opening this project as trusted.",
+        "action.stopBeforeRunningCi": "Action: stop before enabling or running CI, pull requests, or repository automation.",
+        "action.reviewBeforeRunningCi": "Action: review before running CI for this nested component.",
+        "action.reviewBeforeTrust": "Action: review before trusting this project.",
+        "action.contextualReview": "Action: contextual review. Check whether this is on an execution path.",
+        "action.informational": "Action: informational. Still review unknown projects when appropriate.",
+        "triage.nestedWorkflow": "Triage: nested GitHub Actions workflow under an SDK, vendored dependency, or copied upstream component. It usually does not run during local execution, but review it before enabling CI for that component.",
+        "signal.lowered": "Signal: contains text equivalent to {severity}, but the displayed priority was lowered because of its location context.",
+        "severity.critical": "Critical",
+        "severity.high": "High",
+        "severity.medium": "Review",
+        "severity.low": "Low",
+        "severity.info": "Info",
+        "guide.noFindings": "No findings were detected. This is not a complete safety guarantee. The scanner cannot detect all unknown malware, externally downloaded code, or malicious packages.",
+        "guide.editorExtension": " Findings inside editor or AI-tool extension folders may be legitimate extension scripts. Check the extension name, publisher, and whether you installed it intentionally.",
+        "guide.allowlisted": " Install scripts lowered by safe-patterns should still be reviewed for unknown repositories.",
+        "guide.scannerInternal": " Findings inside this scanner's rule files, source, or self-test folders are reference/detection strings. Treat them separately from unknown project files.",
+        "guide.agentInstruction": " AI-agent instruction files are not executable by themselves, but they should be reviewed before automated agent work.",
+        "guide.nestedWorkflow": " Nested GitHub Actions workflow findings may be CI configuration bundled with upstream SDKs or dependencies. Treat them as CI review material, not necessarily a reason to stop local execution.",
+        "guide.signalSummary": " Displayed severity is response priority. The original detection signals include Critical {critical} and High {high}.",
+        "guide.critical": "Critical findings are present. Do not run this project. Quick steps: 1. Stop npm install / builds 2. Open VS Code or Cursor only in Restricted Mode, or do not open it yet 3. Do not let AI agents auto-modify it 4. Confirm the source and official advisories 5. If already run in a credentialed environment, consider rotating GitHub/npm/API keys and SSH keys. For Node.js projects, also consider pnpm minimumReleaseAge, blockExoticSubdeps, and allowBuilds.",
+        "guide.high": "High-priority findings are present. Open the listed files and review them. If a command or install script is unclear, do not run it. Use Restricted Mode for VS Code/Cursor and avoid AI-agent auto-run. For Node.js projects, pnpm minimumReleaseAge and install-script allowlists can add defense.",
+        "guide.medium": "Review-priority findings are present. Check package names, versions, lockfiles, tasks.json, and package.json scripts. A name match alone is not proof of compromise. If unsure, pause before updating or installing dependencies.",
+        "guide.low": "Findings are present. Low/info findings are review prompts. Check whether the file is executable, documentation, or a rule file. If unsure, show the JSON result to someone technical before running the project.",
+        "friendly.tooManyCandidates": "The candidate file limit was exceeded. Scan a downloaded project folder rather than an entire user folder or large parent folder. Add exclusions such as node_modules;AppData;Windows;Program Files if needed.",
+        "stream.noResult": "Could not receive the scan result.",
+        "progress.enumerate": "Counting candidate files",
+        "progress.scan": "Checking files",
+        "progress.done": "Done",
+        "progress.error": "Stopped",
+        "progress.running": "Running",
+        "progress.preparing": "Preparing",
+        "progress.errorShort": "Error",
+        "progress.counts": "Candidates {candidateFiles} / scanned {scannedFiles} / findings {matchCount}"
+      }
+    };
+
+    function t(key, values = {}) {
+      let text = (I18N[currentLang] && I18N[currentLang][key]) || I18N.ja[key] || key;
+      for (const [name, value] of Object.entries(values)) {
+        text = text.replaceAll(`{${name}}`, value);
+      }
+      return text;
+    }
+
+    function setLanguage(lang) {
+      currentLang = lang === "en" ? "en" : "ja";
+      localStorage.setItem("ipsLanguage", currentLang);
+      document.documentElement.lang = currentLang;
+      $("langJa").classList.toggle("active", currentLang === "ja");
+      $("langEn").classList.toggle("active", currentLang === "en");
+      document.querySelectorAll("[data-i18n]").forEach((node) => {
+        node.textContent = t(node.dataset.i18n);
+      });
+      document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
+        node.setAttribute("placeholder", t(node.dataset.i18nPlaceholder));
+      });
+      if (lastResult) {
+        renderResult(lastResult);
+      }
+    }
+
+    const savedLanguage = localStorage.getItem("ipsLanguage");
+    currentLang = savedLanguage || ((navigator.language || "").toLowerCase().startsWith("en") ? "en" : "ja");
+    $("langJa").addEventListener("click", () => setLanguage("ja"));
+    $("langEn").addEventListener("click", () => setLanguage("en"));
+    setLanguage(currentLang);
 
     $("ruleId").addEventListener("change", () => {
       $("customPatternWrap").classList.toggle("hidden", $("ruleId").value !== "custom");
@@ -448,14 +733,14 @@
         supplyNodeModulesFullScan: $("supplyNodeModulesFullScan").checked
       };
       if (!payload.rootPath) {
-        $("status").textContent = "対象フォルダを入力してください。";
+        $("status").textContent = t("status.needRoot");
         return;
       }
 
       $("scanButton").disabled = true;
       $("exportButton").disabled = true;
       $("stopButton").disabled = true;
-      $("status").textContent = "スキャン中です。大きなフォルダでは少し時間がかかります。";
+      $("status").textContent = t("status.scanning");
       $("resultSection").classList.add("hidden");
       showProgress({ phase: "enumerate", percent: 0, currentPath: payload.rootPath, scannedFiles: 0, candidateFiles: 0, matchCount: 0 });
 
@@ -472,11 +757,11 @@
         renderResult(data);
         $("exportButton").disabled = false;
         showProgress({ phase: "done", percent: 100, currentPath: "", scannedFiles: data.scannedFiles, candidateFiles: data.candidateFiles, matchCount: data.matchCount });
-        $("status").textContent = data.matchCount > 0 ? "検出があります。詳細を確認してください。" : "検出はありませんでした。";
+        $("status").textContent = data.matchCount > 0 ? t("status.hasFindings") : t("status.noFindings");
       } catch (error) {
         const message = friendlyErrorMessage(error.message);
         showProgress({ phase: "error", percent: 100, currentPath: message, scannedFiles: 0, candidateFiles: 0, matchCount: 0 });
-        $("status").textContent = "エラー: " + message;
+        $("status").textContent = t("status.errorPrefix") + message;
       } finally {
         $("scanButton").disabled = false;
         $("stopButton").disabled = false;
@@ -498,9 +783,9 @@
     $("stopButton").addEventListener("click", async () => {
       try {
         await fetch("/api/stop", { method: "POST", headers: { "X-Scanner-Token": API_TOKEN } });
-        $("status").textContent = "ローカルサーバを停止しました。このタブは閉じて大丈夫です。";
+        $("status").textContent = t("status.serverStopped");
       } catch {
-        $("status").textContent = "停止要求を送信できませんでした。PowerShellウィンドウを閉じてください。";
+        $("status").textContent = t("status.stopFailed");
       }
     });
 
@@ -508,28 +793,36 @@
       $("resultSection").classList.remove("hidden");
       $("limitAlert").style.display = data.resultLimitReached ? "block" : "none";
       $("errorAlert").style.display = data.errors.length ? "block" : "none";
-      $("errorAlert").textContent = data.errors.length ? `読み取りエラー ${data.errors.length} 件。一部の保護フォルダまたは壊れたファイルはスキップされています。` : "";
+      $("errorAlert").textContent = data.errors.length ? t("alerts.readErrors", { count: data.errors.length }) : "";
       $("resultGuide").textContent = getResultGuide(data);
       if (data.supplyChainRules && data.supplyChainRules.loadStatus === "fallback") {
         $("errorAlert").style.display = "block";
-        $("errorAlert").textContent = ($("errorAlert").textContent ? $("errorAlert").textContent + " " : "") + "同梱IOCルールを読めなかったため、簡易ルールだけで確認しています。";
+        $("errorAlert").textContent = ($("errorAlert").textContent ? $("errorAlert").textContent + " " : "") + t("alerts.ruleFallback");
       }
 
       const verdict = data.matchCount > 0
-        ? `<span class="danger">検出あり</span>`
-        : `<span class="ok">検出なし</span>`;
+        ? `<span class="danger">${t("verdict.detected")}</span>`
+        : `<span class="ok">${t("verdict.clean")}</span>`;
       const summary = data.summary || {};
-      $("summary").innerHTML = [
-        metric("判定", verdict),
+      const signalSummary = data.signalSummary || {};
+      const summaryCards = [
+        metric(t("metrics.verdict"), verdict),
         metric("Critical", summary.critical || 0, "critical"),
         metric("High", summary.high || 0, "high"),
         metric("Medium", summary.medium || 0, "medium"),
         metric("Low", summary.low || 0, "low"),
-        metric("Info", summary.info || 0, "info"),
-        metric("検出件数", data.matchCount),
-        metric("走査ファイル", data.scannedFiles),
-        metric("秒", data.elapsedSeconds)
-      ].join("");
+        metric("Info", summary.info || 0, "info")
+      ];
+      if (hasDifferentSignalSummary(summary, signalSummary)) {
+        summaryCards.push(metric(t("metrics.signalCritical"), signalSummary.critical || 0, "critical"));
+        summaryCards.push(metric(t("metrics.signalHigh"), signalSummary.high || 0, "high"));
+      }
+      summaryCards.push(
+        metric(t("metrics.findings"), data.matchCount),
+        metric(t("metrics.scanned"), data.scannedFiles),
+        metric(t("metrics.seconds"), data.elapsedSeconds)
+      );
+      $("summary").innerHTML = summaryCards.join("");
 
       const body = $("resultsBody");
       body.textContent = "";
@@ -553,9 +846,12 @@
         tr.children[4].textContent = row.match || "";
         const detail = [
           getPathContextText(row.pathContext),
+          getActionabilityText(row.actionability),
+          getSignalSeverityText(row),
+          getTriageNoteText(row),
           row.message || "",
           row.recommendation || "",
-          row.snippet ? `周辺: ${row.snippet}` : ""
+          row.snippet ? t("detail.snippet", { snippet: row.snippet }) : ""
         ].filter(Boolean).join("\n");
         tr.children[5].textContent = detail;
         body.appendChild(tr);
@@ -563,75 +859,130 @@
     }
 
     function getPathContextText(context) {
+      if (context === "github-workflow") {
+        return t("context.githubWorkflow");
+      }
+      if (context === "nested-github-workflow") {
+        return t("context.nestedGithubWorkflow");
+      }
+      if (context === "local-cache-or-sdk") {
+        return t("context.localCacheOrSdk");
+      }
       if (context === "editor-extension") {
-        return "文脈: エディタ/AIツールの拡張機能フォルダ内です。正規の拡張機能が持つ開発用scriptの可能性があります。未知のGitHubプロジェクト直下の検出とは分けて確認してください。";
+        return t("context.editorExtension");
       }
       if (context === "node_modules") {
-        return "文脈: node_modules内です。展開済み依存パッケージとして確認してください。";
+        return t("context.nodeModules");
       }
       if (context === "documentation") {
-        return "文脈: README/docsなど説明文寄りです。実行経路に乗るか確認してください。";
+        return t("context.documentation");
       }
       if (context === "scanner-rule-file") {
-        return "文脈: このスキャナの同梱ルールファイル内です。IoC文字列が含まれるのは通常です。";
+        return t("context.scannerRuleFile");
       }
       if (context === "scanner-source") {
-        return "文脈: このスキャナ本体のソース内です。検知用IoCや自己診断用文字列が含まれることがあります。";
+        return t("context.scannerSource");
       }
       if (context === "scanner-selftest") {
-        return "文脈: このスキャナのセルフテスト用フォルダ内です。検知確認用の危険サンプルです。";
+        return t("context.scannerSelftest");
       }
       if (context === "ai-agent-instruction") {
-        return "文脈: AIエージェント向けのプロジェクト指示ファイルです。自動実行そのものではありませんが、エージェントに作業させる前に内容を確認してください。";
+        return t("context.aiAgentInstruction");
       }
       return "";
     }
 
+    function getActionabilityText(actionability) {
+      switch ((actionability || "").toLowerCase()) {
+        case "stop-before-run":
+          return t("action.stopBeforeRun");
+        case "stop-before-running-ci":
+          return t("action.stopBeforeRunningCi");
+        case "review-before-running-ci":
+          return t("action.reviewBeforeRunningCi");
+        case "review-before-trust":
+          return t("action.reviewBeforeTrust");
+        case "contextual-review":
+          return t("action.contextualReview");
+        case "informational":
+          return t("action.informational");
+        default:
+          return "";
+      }
+    }
+
+    function getTriageNoteText(row) {
+      if ((row.pathContext || "") === "nested-github-workflow" && row.triageNote) {
+        return t("triage.nestedWorkflow");
+      }
+      return row.triageNote || "";
+    }
+
+    function getSignalSeverityText(row) {
+      const signal = (row.signalSeverity || row.severity || "").toLowerCase();
+      const shown = (row.severity || "").toLowerCase();
+      if (!signal || signal === shown) return "";
+      return t("signal.lowered", { severity: getSeverityLabel(signal) });
+    }
+
+    function hasDifferentSignalSummary(summary, signalSummary) {
+      const levels = ["critical", "high", "medium", "low", "info"];
+      return levels.some((level) => (summary[level] || 0) !== (signalSummary[level] || 0));
+    }
+
     function getSeverityLabel(severity) {
       switch ((severity || "info").toLowerCase()) {
-        case "critical": return "危険";
-        case "high": return "高リスク";
-        case "medium": return "要注意";
-        case "low": return "低";
-        default: return "参考";
+        case "critical": return t("severity.critical");
+        case "high": return t("severity.high");
+        case "medium": return t("severity.medium");
+        case "low": return t("severity.low");
+        default: return t("severity.info");
       }
     }
 
     function getResultGuide(data) {
       if (!data.matchCount) {
-        return "検出はありませんでした。ただし、この結果は完全な安全保証ではありません。未知のマルウェア、外部取得コード、すべての悪性パッケージまでは検出できません。";
+        return t("guide.noFindings");
       }
       const summary = data.summary || {};
+      const signalSummary = data.signalSummary || {};
       const hasEditorExtensionHits = (data.results || []).some((row) => row.pathContext === "editor-extension");
       const hasAllowlistedHits = (data.results || []).some((row) => row.category === "install-script-allowlisted");
       const hasAgentInstructionHits = (data.results || []).some((row) => row.pathContext === "ai-agent-instruction");
+      const hasNestedWorkflowHits = (data.results || []).some((row) => row.pathContext === "nested-github-workflow");
       const hasScannerInternalHits = (data.results || []).some((row) =>
         row.pathContext === "scanner-rule-file" ||
         row.pathContext === "scanner-source" ||
         row.pathContext === "scanner-selftest"
       );
       const contextNote = hasEditorExtensionHits
-        ? " なお、エディタ/AIツールの拡張機能フォルダ内の検出は、正規拡張機能のscriptである可能性があります。拡張機能名、発行元、意図して入れたものかを確認し、未知のGitHubプロジェクト直下の検出とは分けて判断してください。"
+        ? t("guide.editorExtension")
         : "";
       const allowlistNote = hasAllowlistedHits
-        ? " safe-patternsに一致して参考扱いになったinstall scriptも、未知のリポジトリでは念のため内容を見てください。"
+        ? t("guide.allowlisted")
         : "";
       const scannerInternalNote = hasScannerInternalHits
-        ? " このスキャナ自身のルールファイル、ソース、セルフテスト内の検出は、検知用文字列が含まれるため参考扱いです。未知のプロジェクト直下の検出とは分けて見てください。"
+        ? t("guide.scannerInternal")
         : "";
       const agentInstructionNote = hasAgentInstructionHits
-        ? " AIエージェント向け指示ファイルは実行ファイルではありませんが、エージェントに自動作業させる前の確認対象です。"
+        ? t("guide.agentInstruction")
+        : "";
+      const nestedWorkflowNote = hasNestedWorkflowHits
+        ? t("guide.nestedWorkflow")
+        : "";
+      const signalSummaryNote = hasDifferentSignalSummary(summary, signalSummary)
+        ? t("guide.signalSummary", { critical: signalSummary.critical || 0, high: signalSummary.high || 0 })
         : "";
       if ((summary.critical || 0) > 0) {
-        return "危険レベルがあります。このプロジェクトは実行しないでください。簡易対策: 1. npm install / ビルドを止める 2. VS CodeやCursorはRestricted Modeで開くか、まだ開かない 3. AIエージェントに自動修正させない 4. 入手元と公式アドバイザリを確認 5. 既に実行済みならGitHub/npm/APIキー/SSH鍵などのローテーションを検討してください。Node.jsプロジェクトでは、追加防御としてpnpmのminimumReleaseAge、blockExoticSubdeps、allowBuildsも検討できます。" + contextNote + allowlistNote + scannerInternalNote + agentInstructionNote;
+        return t("guide.critical") + contextNote + allowlistNote + scannerInternalNote + agentInstructionNote + nestedWorkflowNote + signalSummaryNote;
       }
       if ((summary.high || 0) > 0) {
-        return "高リスクがあります。簡易対策: 該当ファイルを開いて内容を確認し、意味が分からないコマンドやinstall scriptがある場合は実行しないでください。VS CodeやCursorはRestricted Mode、AIエージェントは自動実行なしで扱うのが安全です。Node.jsプロジェクトでは、pnpmのminimumReleaseAgeやinstall scriptの許可制も追加防御になります。" + contextNote + allowlistNote + scannerInternalNote + agentInstructionNote;
+        return t("guide.high") + contextNote + allowlistNote + scannerInternalNote + agentInstructionNote + nestedWorkflowNote + signalSummaryNote;
       }
       if ((summary.medium || 0) > 0) {
-        return "要注意があります。簡易対策: パッケージ名、バージョン、lockfile、tasks.json、package.json scriptsの該当箇所を確認してください。名前だけでは悪性と断定できません。不明な場合は依存関係を更新・インストールせず、一旦保留してください。" + contextNote + allowlistNote + scannerInternalNote + agentInstructionNote;
+        return t("guide.medium") + contextNote + allowlistNote + scannerInternalNote + agentInstructionNote + nestedWorkflowNote + signalSummaryNote;
       }
-      return "検出があります。参考/低は注意喚起寄りです。簡易対策: 実行される場所にあるか、説明文やルールファイル内の記載かを確認してください。判断できない場合は実行前に詳しい人へ結果JSONを見せてください。" + contextNote + allowlistNote + scannerInternalNote + agentInstructionNote;
+      return t("guide.low") + contextNote + allowlistNote + scannerInternalNote + agentInstructionNote + nestedWorkflowNote + signalSummaryNote;
     }
 
     function normalizePastedPath(value) {
@@ -649,7 +1000,7 @@
     function friendlyErrorMessage(message) {
       const text = message || "";
       if (/Too many candidate files/i.test(text)) {
-        return "候補ファイルが上限を超えたため停止しました。ユーザーフォルダ全体や大きな親フォルダではなく、GitHubから展開したプロジェクトフォルダ単位でスキャンしてください。必要なら除外ディレクトリに node_modules;AppData;Windows;Program Files などを追加してください。";
+        return t("friendly.tooManyCandidates");
       }
       return text;
     }
@@ -679,25 +1030,29 @@
         }
       }
 
-      if (!finalResult) throw new Error("スキャン結果を受信できませんでした。");
+      if (!finalResult) throw new Error(t("stream.noResult"));
       return finalResult;
     }
 
     function showProgress(event) {
       $("progressWrap").style.display = "block";
-      const phaseText = event.phase === "enumerate" ? "候補ファイルを数えています"
-        : event.phase === "scan" ? "ファイルを確認しています"
-        : event.phase === "done" ? "完了"
-        : event.phase === "error" ? "停止しました"
-        : "動作中";
+      const phaseText = event.phase === "enumerate" ? t("progress.enumerate")
+        : event.phase === "scan" ? t("progress.scan")
+        : event.phase === "done" ? t("progress.done")
+        : event.phase === "error" ? t("progress.error")
+        : t("progress.running");
       const percent = Number(event.percent || 0);
       $("progressPhase").textContent = phaseText;
-      $("progressPercent").textContent = event.phase === "enumerate" ? "準備中"
-        : event.phase === "error" ? "エラー"
+      $("progressPercent").textContent = event.phase === "enumerate" ? t("progress.preparing")
+        : event.phase === "error" ? t("progress.errorShort")
         : `${percent}%`;
       $("progressBar").classList.toggle("indeterminate", event.phase === "enumerate");
       $("progressBar").style.width = event.phase === "enumerate" ? "" : `${Math.max(0, Math.min(100, percent))}%`;
-      const counts = `候補 ${event.candidateFiles || 0} 件 / 走査 ${event.scannedFiles || 0} 件 / 検出 ${event.matchCount || 0} 件`;
+      const counts = t("progress.counts", {
+        candidateFiles: event.candidateFiles || 0,
+        scannedFiles: event.scannedFiles || 0,
+        matchCount: event.matchCount || 0
+      });
       $("progressDetail").textContent = event.currentPath ? `${counts} / ${event.currentPath}` : counts;
     }
 

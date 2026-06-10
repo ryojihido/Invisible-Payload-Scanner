@@ -69,4 +69,6 @@ Supply Chain IOC Scan is a static pre-run check. It can flag known IOC strings, 
 
 It does not prove that a project is clean. Package names alone are treated as prompts for review, not proof of compromise. If a critical or high finding appears, stop before installing or building the project, confirm the source, compare package versions with official advisories, and rotate credentials if the project has already been executed in an exposed environment.
 
+v0.3.1 separates the raw signal from the response priority. A finding may keep a high or critical `signalSeverity` while receiving a lower displayed `severity` when it appears in a nested SDK, vendored dependency, or copied upstream GitHub Actions workflow that normally does not run during local project execution. The exported `summary` counts displayed response priority, while `signalSummary` counts the original detection signal. Root project automation, install lifecycle scripts, folder-open tasks, Git hooks, and invisible Unicode findings are not lowered by this workflow context rule.
+
 Lockfile matches are intentionally conservative. The initial implementation treats package-name and version proximity as a review candidate, not a confirmed malicious dependency, unless a parsed `package.json` manifest directly identifies a known affected package and version.

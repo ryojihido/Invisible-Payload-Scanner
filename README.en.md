@@ -16,22 +16,25 @@ See [SECURITY.md](SECURITY.md) for the security policy and reporting scope. A Ja
 
 ## Release Types
 
-Invisible Payload Scanner currently has three main usage paths:
+Invisible Payload Scanner currently has four main usage paths:
 
 - `v0.1.0 Classic`: the first release, focused on invisible Unicode screening
 - `v0.2.0 Safety Pre-Scan`: adds npm supply-chain IOC checks and AI coding environment auto-run checks on top of Classic
+- `v0.3.1 Context-Aware Triage`: keeps the v0.3.0 checks and separates root GitHub Actions workflows from nested workflows bundled inside SDKs, dependencies, or copied upstream components
 - `v0.3.0 Contagious Interview Pre-Scan`: adds VS Code/Cursor folder-open task checks, npm install lifecycle correlation, GitHub Actions workflow risk hints, Git hook checks, and local safe-pattern priority lowering
 
-Existing `v0.1.0` release assets are kept as-is and will not be replaced. Use `v0.3.0` or later when you need the broader pre-run safety checks.
+Existing `v0.1.0` release assets are kept as-is and will not be replaced. Use `v0.3.1` or later when you need the broader pre-run safety checks.
 
 ## Which Should I Use?
 
-In most cases, use the latest **v0.3.0 Contagious Interview Pre-Scan** release.
+In most cases, use the latest **v0.3.1 Context-Aware Triage** release.
 
+- **v0.3.1 Context-Aware Triage**
+  Use this for normal checks. It keeps the v0.3.0 detection surface and adds context-aware priority so dangerous strings are still recorded while lower-actionability nested workflows do not dominate the result. The UI can switch between Japanese and English.
 - **Classic: Invisible Unicode Scan**
   A lightweight mode focused on invisible Unicode, GlassWorm-style patterns, and Trojan Source-style checks.
 - **v0.3.0 Contagious Interview Pre-Scan**
-  Use this for normal checks. It includes invisible Unicode checks plus npm install-time scripts, VS Code/Cursor auto-run tasks, AI agent settings, Git hook candidates, GitHub Actions workflow risk hints, and local safe-pattern priority lowering.
+  Includes invisible Unicode checks plus npm install-time scripts, VS Code/Cursor auto-run tasks, AI agent settings, Git hook candidates, GitHub Actions workflow risk hints, and local safe-pattern priority lowering.
 - **v0.2.0 Safety Pre-Scan**
   Includes Classic checks plus npm supply-chain IOCs, VS Code/Cursor auto-run tasks, Claude Code / AI agent hooks, install scripts, and Git hook candidates.
 
@@ -180,6 +183,8 @@ Safe patterns never override remote download-and-execute, shell, encoded payload
 Package names alone are not treated as proof of compromise. Namespace matches such as `@tanstack/` are prompts for review. Stronger warnings require known affected versions, known IOC strings, auto-run settings, or install-script risk terms.
 
 v0.3 also adds compound findings. For example, if `.vscode/tasks.json` or `.cursor/tasks.json` runs `npm install`, `npm i`, `pnpm i`, `yarn install`, or `bun i` on `folderOpen` and the same project has `prepare` / `postinstall` lifecycle scripts, the scanner reports the combination separately.
+
+v0.3.1 adds context-aware triage fields. The scanner keeps the original danger signal in `signalSeverity`, while `severity`, `actionability`, and `pathContext` describe how urgently the user should respond. In exported JSON, `summary` counts displayed response priority and `signalSummary` counts the original detection signal. Root `.github/workflows/*.yml` files are still treated as repository automation risk. Nested `.github/workflows/*.yml` files inside SDKs, vendored dependencies, or copied upstream components are lowered in action priority because they usually do not run during local project execution. They remain visible as CI review material instead of being suppressed.
 
 ## After a Finding
 

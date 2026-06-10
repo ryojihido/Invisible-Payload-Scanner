@@ -73,4 +73,6 @@ Supply Chain IOC Scanは、実行前の静的チェックです。既知IoC文�
 
 `Critical` や `High` が出た場合は、そのプロジェクトをインストール・ビルド・実行する前に止めてください。入手元を確認し、公式アドバイザリとパッケージバージョンを比較してください。すでに実行済みで、認証情報にアクセスできる環境だった場合は、GitHub token、npm token、APIキー、SSH鍵などのローテーションを検討してください。
 
+v0.3.1では、検出語そのものの危険度と、ユーザーが今すぐ取るべき対応優先度を分けます。SDK、vendored dependency、上流コピー内のネストしたGitHub Actions workflowにある検出は、`signalSeverity` に元の危険シグナルを残しつつ、表示上の `severity` を下げる場合があります。JSONの `summary` は表示上の対応優先度、`signalSummary` は元の検出シグナルの集計です。これは通常のローカル実行では動かないCI設定を低優先で扱うためです。ルート直下のworkflow、install lifecycle script、folder-open task、Git hook、不可視Unicode検出は、この文脈ルールでは弱めません。
+
 lockfileの検出は慎重に扱います。初期実装では、構造的に確定できないlockfile内のパッケージ名とバージョンの近傍一致は「確認候補」として扱います。`package.json` から既知の影響パッケージ名とバージョンが直接確認できる場合だけ、より強い警告にします。
