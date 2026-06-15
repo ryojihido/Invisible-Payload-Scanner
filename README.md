@@ -43,6 +43,8 @@
 
 ## 判定の見方（v0.4.1 Verdict-First）
 
+![Invisible Payload Scanner：判定カードの表示例](docs/preview-verdict.png)
+
 スキャンが終わると、まず大きな**判定カード**が出ます。詳細の表より先に、「**で、このフォルダは触っていいの？**」に答えます。
 
 - 🔴 **このプロジェクトは実行しないでください**
@@ -396,7 +398,7 @@ U+FE0F U+FE0F U+FE0F U+FE0F
 通常は最新の **v0.4.1 Verdict-First UX** を使ってください。Web UIでは、まず `両方まとめて確認（v0.4おすすめ）` のまま使い、不可視Unicodeだけ確認したい時にスキャン種別を切り替えます。
 
 - **v0.4.1 Verdict-First UX（推奨）** — v0.4.0の機能に加え、数GB級モデルファイルを含むフォルダでのスキャン停止を修正。
-- **v0.4.0 Verdict-First UX（推奨）** — 検出結果を 🔴🟡🟢 の判定と「次の一手」で表示。スキャン中止、SHA-256確認、download-and-execute検出を追加。
+- **v0.4.0 Verdict-First UX（履歴）** — 検出結果を 🔴🟡🟢 の判定と「次の一手」で表示。スキャン中止、SHA-256確認、download-and-execute検出を追加。ただし、数GB級モデルファイルを含むフォルダでスキャンが止まるバグがあり、v0.4.1で修正しました。
 - **v0.3.1 Context-Aware Triage** — 検出シグナルと対応優先度を分けて表示。UIは日本語/英語を切り替え可能。
 - **v0.3.0 Contagious Interview Pre-Scan** — `npm install`・エディタ・AIエージェント・Git hook 周辺の自動実行設定を確認。
 - **v0.2.0 Safety Pre-Scan** — 不可視Unicodeに加え、npmサプライチェーンIoC・自動実行設定を確認。

@@ -43,6 +43,8 @@ Interview tasks, sample code, a repo a friend sent, a project you had an AI gene
 
 ## Reading the verdict (v0.4.1 Verdict-First)
 
+![Invisible Payload Scanner: verdict card example](docs/preview-verdict.png)
+
 When the scan finishes, a large **verdict card** appears first — before any table — answering "so, is this folder safe to touch?"
 
 - 🔴 **Do not run this project.** A known attack pattern or a dangerous auto-run setting was found. Next steps:
@@ -271,7 +273,7 @@ Recommended triage:
 Normally, use the latest **v0.4.1 Verdict-First UX**. In the Web UI, keep `両方まとめて確認（v0.4おすすめ）` (check both — recommended) selected, and switch the scan type only when you want invisible-Unicode-only checks.
 
 - **v0.4.1 Verdict-First UX (recommended)** — v0.4.0 plus a fix for scan failures in folders containing multi-GB model files.
-- **v0.4.0 Verdict-First UX (recommended)** — verdict + next steps, scan cancel, SHA-256 verification, download-and-execute detection.
+- **v0.4.0 Verdict-First UX (historical)** — verdict + next steps, scan cancel, SHA-256 verification, download-and-execute detection. It had a bug that could stop scans in folders containing multi-GB model files; v0.4.1 fixes it.
 - **v0.3.1 Context-Aware Triage** — separates the detection signal from response priority. The UI can switch between Japanese and English.
 - **v0.3.0 Contagious Interview Pre-Scan** — checks auto-run settings around npm install, editors, AI agents, and Git hooks.
 - **v0.2.0 Safety Pre-Scan** — invisible Unicode plus npm supply-chain IoCs and auto-run settings.
