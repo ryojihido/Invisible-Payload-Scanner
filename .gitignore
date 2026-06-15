@@ -1,8 +1,11 @@
 _selftest/
 _compound_selftest/
+_drafts/
 dist/
 .edge-preview-profile/
 *.log
 *.tmp
 glassworm-scan-*.json
 invisible-payload-scan-*.json
+# internal planning doc — not for release / not pushed
+docs/plan-v0.4-improvement.md

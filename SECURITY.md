@@ -56,6 +56,7 @@ Out of scope:
 - Regex matching uses a timeout per file.
 - The default threshold is tuned to reduce common emoji-related false positives.
 - Request body size, custom pattern length, maximum file size, and candidate file count are capped server-side.
+- Release authenticity can be verified before use: confirm the downloaded archive with `Get-FileHash <zip> -Algorithm SHA256`, and compare against the startup banner, which prints the running script's own SHA-256.
 
 ## Threat model limits
 
@@ -65,7 +66,7 @@ If you suspect malicious resident software or unsafe browser extensions on the m
 
 ## Supply Chain IOC Scan limits
 
-Supply Chain IOC Scan is a static pre-run check. It can flag known IOC strings, known affected package versions included in the bundled rules, VS Code/Cursor folder-open tasks, Claude Code / AI agent hooks, AI-agent instruction files, GitHub Actions workflow risk hints, and install-time lifecycle scripts.
+Supply Chain IOC Scan is a static pre-run check. It can flag known IOC strings, known affected package versions included in the bundled rules, VS Code/Cursor folder-open tasks, Claude Code / AI agent hooks, AI-agent instruction files, GitHub Actions workflow risk hints, install-time lifecycle scripts, and download-and-execute indicators (such as `curl | bash`, `iwr | iex`, `powershell -enc`, and LOLBins like `certutil`, `mshta`, `bitsadmin`, or `rundll32`). A lone download-and-execute indicator is reported as low/informational; it is escalated only when combined with folder-open tasks, install-lifecycle scripts, Git hooks, or workflows.
 
 It does not prove that a project is clean. Package names alone are treated as prompts for review, not proof of compromise. If a critical or high finding appears, stop before installing or building the project, confirm the source, compare package versions with official advisories, and rotate credentials if the project has already been executed in an exposed environment.
 

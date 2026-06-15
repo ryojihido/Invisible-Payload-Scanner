@@ -58,6 +58,7 @@ Invisible Payload Scannerは、ローカルで動く一次スクリーニング�
 - 正規表現マッチングにはファイルごとのタイムアウトを設定しています。
 - 既定のしきい値は、絵文字由来の一般的な誤検知を減らすよう調整しています。
 - リクエスト本文サイズ、カスタム正規表現長、最大ファイルサイズ、候補ファイル数には上限があります。
+- 使用前にリリースの真正性を確認できます。ダウンロードした配布物を `Get-FileHash <zip> -Algorithm SHA256` で確認し、起動バナーが表示する実行中スクリプト自身のSHA-256と照合してください。
 
 ## 脅威モデルの限界
 
@@ -67,7 +68,7 @@ Invisible Payload Scannerは、ローカルで動く一次スクリーニング�
 
 ## Supply Chain IOC Scanの限界
 
-Supply Chain IOC Scanは、実行前の静的チェックです。既知IoC文字列、同梱ルールに含まれる影響バージョン候補、VS Code/Cursorのfolder-open task、Claude Code / AIエージェントhooks、AIエージェント向け指示ファイル、GitHub Actions workflowの危険コマンド候補、install-time lifecycle scriptsを確認できます。
+Supply Chain IOC Scanは、実行前の静的チェックです。既知IoC文字列、同梱ルールに含まれる影響バージョン候補、VS Code/Cursorのfolder-open task、Claude Code / AIエージェントhooks、AIエージェント向け指示ファイル、GitHub Actions workflowの危険コマンド候補、install-time lifecycle scripts、download-and-execute系の指標（`curl | bash`、`iwr | iex`、`powershell -enc` や、`certutil`、`mshta`、`bitsadmin`、`rundll32` などのLOLBins）を確認できます。download-and-execute系の指標が単独で出た場合はlow/informationalとして扱い、folder-open task、install lifecycle script、Git hook、workflowと組み合わさった場合にだけ深刻度を上げます。
 
 この機能は、プロジェクトが安全であることを証明しません。パッケージ名だけの検出は、確認のきっかけであって、侵害の証拠ではありません。
 

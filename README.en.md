@@ -1,42 +1,103 @@
 # Invisible Payload Scanner
 
-## A local-first safety tool for non-engineers to inspect GitHub code and AI-generated projects before running them.
+**A local Windows tool that checks an AI-generated or downloaded project for hidden, dangerous entry points — before you run it.**
 
-Invisible Payload Scanner started as a tool for my own use, then grew into a Windows-friendly local Web UI for people who are not comfortable with CLI workflows.
+It sends nothing to the internet; everything runs on your own PC. No command line needed: download, unzip, and double-click a `.cmd` to check from a browser screen.
 
-It is meant for checking projects downloaded from GitHub before running them. It runs locally on Windows and does not upload scanned file contents to an external server.
+![Invisible Payload Scanner: a 🔴/🟡/🟢 verdict before you run anything](docs/preview-verdict.png)
 
-The current release can check for GlassWorm-style variation selectors and supplementary variation selectors, plus known npm supply-chain IOC traces, editor/AI-agent auto-run settings, GitHub Actions workflow risk hints, and Git hook candidates.
+Japanese version: [README.md](README.md). See [SECURITY.md](SECURITY.md) (Japanese: [SECURITY.ja.md](SECURITY.ja.md)) for the security policy and reporting scope.
 
-This is not a malware verdict engine. It is a first-pass screening tool. If it reports a finding, review the file type, surrounding code, execution path, and package origin.
+---
 
-This tool is not a replacement for antivirus software. Use it alongside resident protection such as ESET or Windows Defender, as a pre-run check before executing, installing, or handing a GitHub project to an AI coding agent.
+## What is it?
 
-See [SECURITY.md](SECURITY.md) for the security policy and reporting scope. A Japanese version is available at [SECURITY.ja.md](SECURITY.ja.md).
+- Before you hand a project to an AI agent (Claude / Cursor, etc.) or run `npm install`, **scan the folder once**.
+- It answers with a **3-color verdict** — 🔴 **stop** / 🟡 **check first** / 🟢 **no dangerous entry points found**.
+- **100% local.** Nothing is uploaded. Files are **only read**, never executed.
+- Open source (MIT). You — or your AI — can read exactly what it does.
 
-## Release Types
+## Why does it matter?
 
-Invisible Payload Scanner currently has four main usage paths:
+Some recent attacks are literally invisible:
 
-- `v0.1.0 Classic`: the first release, focused on invisible Unicode screening
-- `v0.2.0 Safety Pre-Scan`: adds npm supply-chain IOC checks and AI coding environment auto-run checks on top of Classic
-- `v0.3.1 Context-Aware Triage`: keeps the v0.3.0 checks and separates root GitHub Actions workflows from nested workflows bundled inside SDKs, dependencies, or copied upstream components
-- `v0.3.0 Contagious Interview Pre-Scan`: adds VS Code/Cursor folder-open task checks, npm install lifecycle correlation, GitHub Actions workflow risk hints, Git hook checks, and local safe-pattern priority lowering
+- commands hidden in source with **invisible special characters** (GlassWorm-style invisible Unicode),
+- settings that run **the moment you open or install** (`postinstall`, an editor's `tasks.json`),
+- traps slipped into **AI-agent instruction files** (`CLAUDE.md` / `AGENTS.md` / `.cursor/rules`).
 
-Existing `v0.1.0` release assets are kept as-is and will not be replaced. Use `v0.3.1` or later when you need the broader pre-run safety checks.
+Interview tasks, sample code, a repo a friend sent, a project you had an AI generate — some of these run the instant you open them. This tool looks at those entry points **before you run anything**.
 
-## Which Should I Use?
+---
 
-In most cases, use the latest **v0.3.1 Context-Aware Triage** release.
+## How to use it (3 steps)
 
-- **v0.3.1 Context-Aware Triage**
-  Use this for normal checks. It keeps the v0.3.0 detection surface and adds context-aware priority so dangerous strings are still recorded while lower-actionability nested workflows do not dominate the result. The UI can switch between Japanese and English.
-- **Classic: Invisible Unicode Scan**
-  A lightweight mode focused on invisible Unicode, GlassWorm-style patterns, and Trojan Source-style checks.
-- **v0.3.0 Contagious Interview Pre-Scan**
-  Includes invisible Unicode checks plus npm install-time scripts, VS Code/Cursor auto-run tasks, AI agent settings, Git hook candidates, GitHub Actions workflow risk hints, and local safe-pattern priority lowering.
-- **v0.2.0 Safety Pre-Scan**
-  Includes Classic checks plus npm supply-chain IOCs, VS Code/Cursor auto-run tasks, Claude Code / AI agent hooks, install scripts, and Git hook candidates.
+1. **Download & unzip** the latest `InvisiblePayloadScanner-v0.4.0.zip` from Releases. **Don't `npm install`, build, or run it yet.**
+2. **Double-click `Start-InvisiblePayloadScanner.cmd`.** A local Web UI opens in your browser.
+   - ⚠ Windows SmartScreen ("Windows protected your PC") may appear. That is expected for running this bundled local script — click **More info → Run anyway**. Limit this only to this tool's bundled `.ps1`; never do the same for `.cmd` / `.ps1` files of unknown origin. (The `.cmd` launcher uses `-ExecutionPolicy Bypass` solely to run the bundled `Start-InvisiblePayloadScanner.ps1`.)
+3. **Pick a folder and scan.** Paste the path of the project folder you want to check and press **Scan**. A **verdict card** appears within a few seconds (depending on folder size).
+   - The easiest way to enter a path is to open the target folder in File Explorer and copy the address bar. Quoted paths such as `"C:\path\to\project"` are accepted.
+
+> Before scanning, a line is always shown at the top: "This tool only reads files; it does not run or send anything. Results stay on this PC."
+
+![The input screen right after launch — local, nothing sent](docs/preview-input.png)
+
+---
+
+## Reading the verdict (v0.4.0 Verdict-First)
+
+When the scan finishes, a large **verdict card** appears first — before any table — answering "so, is this folder safe to touch?"
+
+- 🔴 **Do not run this project.** A known attack pattern or a dangerous auto-run setting was found. Next steps:
+  1. Do **not** `npm install`, build, or run it.
+  2. Do **not** open it in VS Code / Cursor (use Restricted Mode if you must).
+  3. Save the result JSON and ask an expert or an AI.
+- 🟡 **There's something to check before running.** A suspicious entry point, or possibly a false positive. Check the listed files.
+- 🟢 **No dangerous entry points found.** Nothing obvious — but this is **not a complete safety guarantee** (keep using antivirus / EDR).
+
+> Hard terms are reworded inside the card (e.g. "variation selector" → "**invisible special character**", "install lifecycle script" → "**script that runs automatically on install**").
+
+To stop a running scan, press **Stop scan** next to the progress gauge (the server keeps running, so you can change settings and scan again). The **Quit tool** button stops the local server and closes the tool. If the page ever stops responding, closing the launched PowerShell window is also safe.
+
+---
+
+## What's new in v0.4.0 "Verdict-First UX"
+
+- **Verdict-first display** — a 🔴🟡🟢 verdict with next steps, shown before the severity table.
+- **Safe scan cancel** — stop mid-scan with the **Stop scan** button (previously you had to close the PowerShell window).
+- **Release authenticity (SHA-256)** — verify a downloaded zip is genuine in one line (below).
+- **Download-and-execute detection** — flags classic "fetch and run" such as `curl … | bash`, `iwr … | iex`, `powershell -enc …`, and LOLBins (`certutil` / `mshta` / `bitsadmin` / `rundll32`). Low on their own; escalated when combined with `postinstall`, `folderOpen`, etc.
+
+## Verify it's genuine (optional, recommended)
+
+Before extracting, run this one line in PowerShell (adjust the file name to the version you downloaded):
+
+```powershell
+Get-FileHash .\InvisiblePayloadScanner-v0.4.0.zip -Algorithm SHA256
+```
+
+If the displayed value matches the SHA-256 listed on the GitHub Release page, the file is authentic. If it does not match, do not use it — download it again from the Release page. The startup PowerShell window also prints `Script SHA-256:` so you can compare the script's own hash. Code signing (Authenticode) is a future consideration; SHA-256 comparison is the current verification method.
+
+---
+
+## What it can find (overview)
+
+- **Invisible special characters** — GlassWorm-style invisible Unicode, Trojan Source bidi controls, zero-width characters
+- **Scripts that run automatically on install** — npm `prepare` / `postinstall`
+- **Editor / AI auto-run** — VS Code / Cursor `tasks.json` (`folderOpen`), AI-agent hooks
+- **AI-agent instruction files** — `CLAUDE.md` / `AGENTS.md` / `.cursor/rules`
+- **Dangerous "fetch and run"** — `curl|bash`, `iwr|iex`, `powershell -enc`, LOLBins (new in v0.4.0)
+- **CI / Git danger commands** — GitHub Actions workflows, `.husky/` / `.githooks/`
+- **Known npm supply-chain IoCs** — traces from disclosed attacks (e.g. the May 2026 TanStack incident)
+
+## What it is NOT (honestly)
+
+- **Not an infection detector.** It's a check to help you stop before running something unknown.
+- **Not a replacement** for antivirus / EDR / `npm audit` / professional supply-chain audits. Use it alongside resident protection such as ESET or Windows Defender.
+- **No detection ≠ confirmed safe.** Binary-embedded malware, code fetched at install time, and obfuscated plain-text loaders are out of scope for this tool alone.
+
+---
+
+> The sections below are detailed reference — read them when you need them.
 
 ## Why This Exists
 
@@ -52,38 +113,9 @@ I made this because many existing GlassWorm-related detection tools are CLI-orie
 
 It does not replace a malware scanner, package-audit tool, EDR, or supply-chain security platform. It helps users notice suspicious invisible payloads before running or trusting unfamiliar projects.
 
-## Verifying the Downloaded Zip
-
-Before extracting, run this one line in PowerShell (adjust the file name to the version you downloaded):
-
-```powershell
-Get-FileHash .\InvisiblePayloadScanner-v0.4.0.zip -Algorithm SHA256
-```
-
-If the displayed value matches the SHA-256 listed on the GitHub Release page, the file is authentic. If it does not match, do not use it — download it again from the Release page.
-
-The PowerShell window also prints `Script SHA-256:` at startup so you can compare the script's own hash. Code signing (Authenticode) is a future consideration; SHA-256 comparison is the current verification method.
-
-## Usage
-
-1. Double-click `Start-InvisiblePayloadScanner.cmd`.
-2. Enter the folder path to scan.
-3. Adjust file filters, excluded directories, excluded files, and threshold if needed.
-4. Click `スキャン開始` to start scanning.
-
-Files are read only. They are not executed. Findings display invisible characters as visible markers such as `[VS U+FE0F]` and `[VS U+E0100]`.
-
-The easiest way to enter a folder path is to open the target folder in File Explorer and copy the address bar. Quoted paths such as `"C:\path\to\project"` are accepted.
-
-To interrupt a long scan, use the `Cancel scan` button next to the progress gauge. The server keeps running, so you can adjust the settings and scan again. If the page ever stops responding, it is also safe to close the PowerShell window that launched the scanner.
-
-The `.cmd` launcher uses `-ExecutionPolicy Bypass` only to run the bundled local `Start-InvisiblePayloadScanner.ps1` from the extracted release folder. Do not treat that as a general rule for unknown `.cmd` or `.ps1` files.
-
-The `ツールを終了する` (Exit the tool) button stops the local server and closes the tool. To stop only the current scan, use `Cancel scan` instead.
-
 ## JSON Export
 
-`結果をJSON保存` saves the scan result as a local JSON file. It is useful for later review, asking a more technical person for help, or comparing the finding with GitHub issues, security advisories, or npm package information.
+`結果をJSON保存` (Save result as JSON) saves the scan result as a local JSON file. It is useful for later review, asking a more technical person for help, or comparing the finding with GitHub issues, security advisories, or npm package information.
 
 Possible uses:
 
@@ -190,6 +222,10 @@ v0.3 supplemental rules are separated under `rules/v0.3/` so they are easy to di
 - `rules/v0.3/contagious-interview-rules.json`: heuristics for fake recruiter repositories, `folderOpen`, download-and-execute stagers, short links, Gist/Drive/Vercel-style staging, install lifecycle scripts, GitHub Actions workflow risk hints, and Git hook candidates
 - `rules/v0.3/safe-patterns.json`: local patterns such as `husky install`, `lint-staged`, and `npm run build` that lower low-risk findings without suppressing dangerous indicators
 
+v0.4 supplemental rules live under `rules/v0.4/`.
+
+- `rules/v0.4/download-and-execute-rules.json`: static matches for `curl|wget … | sh/bash/node`, `iwr/irm … | iex`, `powershell -e/-enc <base64>`, and LOLBins (`certutil -urlcache/-decode`, `mshta https:`, `bitsadmin /transfer`, `rundll32 … javascript:`). A single match is Low/Info; it escalates to High/Critical only when combined with folder-open tasks, install lifecycle scripts, Git hooks, or workflows. Official installer one-liners (for example `curl -fsSL https://get.pnpm.io | sh`) are intentionally not added to safe-patterns, so unknown repositories still prompt a check; documentation-context matches are lowered to Info instead.
+
 Safe patterns never override remote download-and-execute, shell, encoded payload, or credential-harvesting indicators.
 
 Package names alone are not treated as proof of compromise. Namespace matches such as `@tanstack/` are prompts for review. Stronger warnings require known affected versions, known IOC strings, auto-run settings, or install-script risk terms.
@@ -221,3 +257,23 @@ Recommended triage:
 6. If `.husky/` or `.githooks/` is reported, review it before running git actions such as commit, checkout, merge, or push.
 7. If a `Critical` or `High` finding appears after you already ran the project, consider rotating GitHub tokens, npm tokens, API keys, SSH keys, and other credentials that may have been exposed.
 8. If you are unsure, ask a technical person or an AI system to review the JSON. For non-local AI services, remove local paths, user names, project names, snippets, and secrets first.
+
+---
+
+## Releases / which one should I use?
+
+Normally, use the latest **v0.4.0 Verdict-First UX**. In the Web UI, keep `両方まとめて確認（v0.4おすすめ）` (check both — recommended) selected, and switch the scan type only when you want invisible-Unicode-only checks.
+
+- **v0.4.0 Verdict-First UX (recommended)** — verdict + next steps, scan cancel, SHA-256 verification, download-and-execute detection.
+- **v0.3.1 Context-Aware Triage** — separates the detection signal from response priority. The UI can switch between Japanese and English.
+- **v0.3.0 Contagious Interview Pre-Scan** — checks auto-run settings around npm install, editors, AI agents, and Git hooks.
+- **v0.2.0 Safety Pre-Scan** — invisible Unicode plus npm supply-chain IoCs and auto-run settings.
+- **v0.1.0 Classic** — lightweight, invisible-Unicode only (GlassWorm-style and Trojan Source-style).
+
+Existing `v0.1.0` release assets are kept as-is and not replaced. Use `v0.4.0` or later when you need the newer checks.
+
+---
+
+- Japanese README: [README.md](README.md)
+- Security policy & reporting scope: [SECURITY.md](SECURITY.md) / [SECURITY.ja.md](SECURITY.ja.md)
+- License: MIT
