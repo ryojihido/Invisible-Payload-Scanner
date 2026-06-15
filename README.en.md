@@ -75,7 +75,7 @@ Before extracting, run this one line in PowerShell (adjust the file name to the 
 Get-FileHash .\InvisiblePayloadScanner-v0.4.0.zip -Algorithm SHA256
 ```
 
-If the displayed value matches the SHA-256 listed on the GitHub Release page, the file is authentic. If it does not match, do not use it — download it again from the Release page. The startup PowerShell window also prints `Script SHA-256:` so you can compare the script's own hash. Code signing (Authenticode) is a future consideration; SHA-256 comparison is the current verification method.
+If the displayed value matches the **zip SHA-256** listed on the GitHub Release page, the file is authentic. If it does not match, do not use it — download it again from the Release page. The startup PowerShell window also prints `Script SHA-256:` for the extracted `Start-InvisiblePayloadScanner.ps1` that is actually running. This is a different value from the zip archive's SHA-256. Code signing (Authenticode) is a future consideration; comparison against the SHA-256 listed on the GitHub Release is the current verification method.
 
 ---
 

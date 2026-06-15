@@ -56,7 +56,7 @@ Out of scope:
 - Regex matching uses a timeout per file.
 - The default threshold is tuned to reduce common emoji-related false positives.
 - Request body size, custom pattern length, maximum file size, and candidate file count are capped server-side.
-- Release authenticity can be verified before use: confirm the downloaded archive with `Get-FileHash <zip> -Algorithm SHA256`, and compare against the startup banner, which prints the running script's own SHA-256.
+- Release authenticity can be verified before use: confirm the downloaded archive with `Get-FileHash <zip> -Algorithm SHA256`, and compare that value with the zip SHA-256 listed on the GitHub Release. The startup banner also prints the running script's own SHA-256, which is a separate value for the extracted `Start-InvisiblePayloadScanner.ps1`.
 
 ## Threat model limits
 

@@ -78,9 +78,9 @@
 Get-FileHash .\InvisiblePayloadScanner-v0.4.0.zip -Algorithm SHA256
 ```
 
-表示された英数字が、GitHub Releaseページに記載されたSHA-256と同じなら本物です。違う場合は使わずに、Releaseページからダウンロードし直してください。
+表示された英数字が、GitHub Releaseページに記載された **zip用SHA-256** と同じなら本物です。違う場合は使わずに、Releaseページからダウンロードし直してください。
 
-また、ツール起動時のPowerShellウィンドウには `Script SHA-256:` としてスクリプト自身のハッシュが表示されます。コード署名（Authenticode）は将来の検討課題で、現時点ではこのSHA-256照合が確認手段です。
+また、ツール起動時のPowerShellウィンドウには `Script SHA-256:` として、展開後に実行されている `Start-InvisiblePayloadScanner.ps1` 自身のハッシュが表示されます。これはzip全体のSHA-256とは別の値です。コード署名（Authenticode）は将来の検討課題で、現時点ではGitHub Releaseに記載されたSHA-256との照合が確認手段です。
 
 ---
 
