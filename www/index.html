@@ -383,7 +383,7 @@
         <h1>Invisible Payload Scanner</h1>
         <div class="subtitle" data-i18n="subtitle">不可視Unicode + npm / エディタ自動実行 / Git hook の実行前チェック</div>
       </div>
-      <span class="release-badge">v0.4.0 Verdict-First UX</span>
+      <span class="release-badge">v0.4.1 Verdict-First UX</span>
       <div class="language-switch" aria-label="Language">
         <button id="langJa" type="button" data-lang="ja">JA</button>
         <button id="langEn" type="button" data-lang="en">EN</button>
@@ -643,6 +643,7 @@
         "guide.medium": "要注意があります。簡易対策: パッケージ名、バージョン、lockfile、tasks.json、package.json scriptsの該当箇所を確認してください。名前だけでは悪性と断定できません。不明な場合は依存関係を更新・インストールせず、一旦保留してください。",
         "guide.low": "検出があります。参考/低は注意喚起寄りです。簡易対策: 実行される場所にあるか、説明文やルールファイル内の記載かを確認してください。判断できない場合は実行前に詳しい人へ結果JSONを見せてください。",
         "friendly.tooManyCandidates": "候補ファイルが上限を超えたため停止しました。ユーザーフォルダ全体や大きな親フォルダではなく、GitHubから展開したプロジェクトフォルダ単位でスキャンしてください。必要なら除外ディレクトリに node_modules;AppData;Windows;Program Files などを追加してください。",
+        "friendly.genericRequestError": "スキャン処理中にエラーが発生しました。対象フォルダを小さくするか、除外設定を追加して再試行してください。詳細は起動中のPowerShellウィンドウに表示されます。",
         "stream.noResult": "スキャン結果を受信できませんでした。",
         "progress.enumerate": "候補ファイルを数えています",
         "progress.scan": "ファイルを確認しています",
@@ -774,6 +775,7 @@
         "guide.medium": "Review-priority findings are present. Check package names, versions, lockfiles, tasks.json, and package.json scripts. A name match alone is not proof of compromise. If unsure, pause before updating or installing dependencies.",
         "guide.low": "Findings are present. Low/info findings are review prompts. Check whether the file is executable, documentation, or a rule file. If unsure, show the JSON result to someone technical before running the project.",
         "friendly.tooManyCandidates": "The candidate file limit was exceeded. Scan a downloaded project folder rather than an entire user folder or large parent folder. Add exclusions such as node_modules;AppData;Windows;Program Files if needed.",
+        "friendly.genericRequestError": "The scan hit an error while processing files. Try a smaller target folder or add exclusions, then run it again. Details are shown in the PowerShell window that started the tool.",
         "stream.noResult": "Could not receive the scan result.",
         "progress.enumerate": "Counting candidate files",
         "progress.scan": "Checking files",
@@ -1239,6 +1241,9 @@
       const text = message || "";
       if (/Too many candidate files/i.test(text)) {
         return t("friendly.tooManyCandidates");
+      }
+      if (/The request could not be completed/i.test(text)) {
+        return t("friendly.genericRequestError");
       }
       return text;
     }

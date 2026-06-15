@@ -4,7 +4,7 @@
 
 It sends nothing to the internet; everything runs on your own PC. No command line needed: download, unzip, and double-click a `.cmd` to check from a browser screen.
 
-![Invisible Payload Scanner: a 🔴/🟡/🟢 verdict before you run anything](docs/preview-verdict.png)
+![Invisible Payload Scanner: v0.4.1 launch screen](docs/preview.png)
 
 Japanese version: [README.md](README.md). See [SECURITY.md](SECURITY.md) (Japanese: [SECURITY.ja.md](SECURITY.ja.md)) for the security policy and reporting scope.
 
@@ -31,7 +31,7 @@ Interview tasks, sample code, a repo a friend sent, a project you had an AI gene
 
 ## How to use it (3 steps)
 
-1. **Download & unzip** the latest `InvisiblePayloadScanner-v0.4.0.zip` from Releases. **Don't `npm install`, build, or run it yet.**
+1. **Download & unzip** the latest `InvisiblePayloadScanner-v0.4.1.zip` from Releases. **Don't `npm install`, build, or run it yet.**
 2. **Double-click `Start-InvisiblePayloadScanner.cmd`.** A local Web UI opens in your browser.
    - ⚠ Windows SmartScreen ("Windows protected your PC") may appear. That is expected for running this bundled local script — click **More info → Run anyway**. Limit this only to this tool's bundled `.ps1`; never do the same for `.cmd` / `.ps1` files of unknown origin. (The `.cmd` launcher uses `-ExecutionPolicy Bypass` solely to run the bundled `Start-InvisiblePayloadScanner.ps1`.)
 3. **Pick a folder and scan.** Paste the path of the project folder you want to check and press **Scan**. A **verdict card** appears within a few seconds (depending on folder size).
@@ -39,11 +39,9 @@ Interview tasks, sample code, a repo a friend sent, a project you had an AI gene
 
 > Before scanning, a line is always shown at the top: "This tool only reads files; it does not run or send anything. Results stay on this PC."
 
-![The input screen right after launch — local, nothing sent](docs/preview-input.png)
-
 ---
 
-## Reading the verdict (v0.4.0 Verdict-First)
+## Reading the verdict (v0.4.1 Verdict-First)
 
 When the scan finishes, a large **verdict card** appears first — before any table — answering "so, is this folder safe to touch?"
 
@@ -60,7 +58,15 @@ To stop a running scan, press **Stop scan** next to the progress gauge (the serv
 
 ---
 
-## What's new in v0.4.0 "Verdict-First UX"
+## What's new in v0.4.1 "Verdict-First UX"
+
+v0.4.1 keeps the v0.4.0 verdict card, scan cancel, SHA-256 verification, and download-and-execute detection, and adds stability fixes for folders that contain very large model files.
+
+- **Safe skipping for large model files** — multi-GB files such as `.safetensors` or `.pt` are skipped by the maximum-file-size check before binary sampling, avoiding scan failures while candidate files are being counted.
+- **Supplementary Unicode near invisible matches** — snippets now handle emoji and other supplementary Unicode characters near invisible-Unicode findings.
+- **Better diagnostics** — unexpected scan exceptions are written to the PowerShell window with sensitive-looking text masked.
+
+### Main v0.4.0 improvements
 
 - **Verdict-first display** — a 🔴🟡🟢 verdict with next steps, shown before the severity table.
 - **Safe scan cancel** — stop mid-scan with the **Stop scan** button (previously you had to close the PowerShell window).
@@ -72,7 +78,7 @@ To stop a running scan, press **Stop scan** next to the progress gauge (the serv
 Before extracting, run this one line in PowerShell (adjust the file name to the version you downloaded):
 
 ```powershell
-Get-FileHash .\InvisiblePayloadScanner-v0.4.0.zip -Algorithm SHA256
+Get-FileHash .\InvisiblePayloadScanner-v0.4.1.zip -Algorithm SHA256
 ```
 
 If the displayed value matches the **zip SHA-256** listed on the GitHub Release page, the file is authentic. If it does not match, do not use it — download it again from the Release page. The startup PowerShell window also prints `Script SHA-256:` for the extracted `Start-InvisiblePayloadScanner.ps1` that is actually running. This is a different value from the zip archive's SHA-256. Code signing (Authenticode) is a future consideration; comparison against the SHA-256 listed on the GitHub Release is the current verification method.
@@ -262,15 +268,16 @@ Recommended triage:
 
 ## Releases / which one should I use?
 
-Normally, use the latest **v0.4.0 Verdict-First UX**. In the Web UI, keep `両方まとめて確認（v0.4おすすめ）` (check both — recommended) selected, and switch the scan type only when you want invisible-Unicode-only checks.
+Normally, use the latest **v0.4.1 Verdict-First UX**. In the Web UI, keep `両方まとめて確認（v0.4おすすめ）` (check both — recommended) selected, and switch the scan type only when you want invisible-Unicode-only checks.
 
+- **v0.4.1 Verdict-First UX (recommended)** — v0.4.0 plus a fix for scan failures in folders containing multi-GB model files.
 - **v0.4.0 Verdict-First UX (recommended)** — verdict + next steps, scan cancel, SHA-256 verification, download-and-execute detection.
 - **v0.3.1 Context-Aware Triage** — separates the detection signal from response priority. The UI can switch between Japanese and English.
 - **v0.3.0 Contagious Interview Pre-Scan** — checks auto-run settings around npm install, editors, AI agents, and Git hooks.
 - **v0.2.0 Safety Pre-Scan** — invisible Unicode plus npm supply-chain IoCs and auto-run settings.
 - **v0.1.0 Classic** — lightweight, invisible-Unicode only (GlassWorm-style and Trojan Source-style).
 
-Existing `v0.1.0` release assets are kept as-is and not replaced. Use `v0.4.0` or later when you need the newer checks.
+Existing `v0.1.0` release assets are kept as-is and not replaced. Use `v0.4.1` or later when you need the newer checks and the large-file scan fix.
 
 ---
 

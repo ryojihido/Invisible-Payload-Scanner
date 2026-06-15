@@ -196,10 +196,12 @@ function ConvertTo-VisibleSnippet {
         $ch = [char]$Text[$i]
         if ([char]::IsHighSurrogate($ch) -and ($i + 1) -lt $Text.Length -and [char]::IsLowSurrogate([char]$Text[$i + 1])) {
             $cp = [char]::ConvertToUtf32($Text, $i)
+            $textForCodePoint = $Text.Substring($i, 2)
             $i++
         }
         else {
             $cp = [int][char]$ch
+            $textForCodePoint = [string]$ch
         }
 
         if (($cp -ge 0xFE00 -and $cp -le 0xFE0F) -or ($cp -ge 0xE0100 -and $cp -le 0xE01EF)) {
@@ -219,7 +221,7 @@ function ConvertTo-VisibleSnippet {
             [void]$builder.Append("[CTRL]")
         }
         else {
-            [void]$builder.Append([char]$cp)
+            [void]$builder.Append($textForCodePoint)
         }
     }
 
@@ -1623,7 +1625,7 @@ function Test-BinaryLikeFile {
         return $false
     }
 
-    $sampleSize = [int][Math]::Min(4096, $File.Length)
+    $sampleSize = [int][Math]::Min([int64]4096, [int64]$File.Length)
     $buffer = New-Object byte[] $sampleSize
     $stream = $null
     try {
@@ -1841,11 +1843,11 @@ function Invoke-Scanner {
                 $skippedFiles++
                 continue
             }
-            if (($textLikeExtensions -notcontains $child.Extension.ToLowerInvariant()) -and (Test-BinaryLikeFile -File $child)) {
+            if ($child.Length -gt $maxBytes) {
                 $skippedFiles++
                 continue
             }
-            if ($child.Length -gt $maxBytes) {
+            if (($textLikeExtensions -notcontains $child.Extension.ToLowerInvariant()) -and (Test-BinaryLikeFile -File $child)) {
                 $skippedFiles++
                 continue
             }
@@ -1923,7 +1925,15 @@ function Invoke-Scanner {
         }
 
     $elapsed = ((Get-Date) - $started).TotalSeconds
-    Add-CompoundProjectFindings -Findings $results -RootPath (Resolve-Path -LiteralPath $rootPath).Path
+    try {
+        Add-CompoundProjectFindings -Findings $results -RootPath (Resolve-Path -LiteralPath $rootPath).Path
+    }
+    catch {
+        if ($errors.Count -lt 200) {
+            $errors.Add(@{ path = (Resolve-Path -LiteralPath $rootPath).Path; message = ("Post-scan triage failed: " + (ConvertTo-MaskedText -Text $_.Exception.Message)) })
+        }
+        Write-Host ("Post-scan triage failed but scan results will still be returned: " + (ConvertTo-MaskedText -Text $_.Exception.Message))
+    }
     $severitySummary = Get-EmptySeveritySummary
     $signalSeveritySummary = Get-EmptySeveritySummary
     foreach ($result in $results) {
@@ -2329,8 +2339,18 @@ if ($SelfTest) {
     $readmeNamedCodeRoot = Join-Path $sampleRoot "README-old"
     New-Item -ItemType Directory -Force -Path $readmeNamedCodeRoot | Out-Null
     $vs = [char]0xFE0F
+    $emoji = [char]::ConvertFromUtf32(0x1F600)
     [System.IO.File]::WriteAllText($samplePath, "const hidden = ``$vs$vs$vs``;`n", [System.Text.Encoding]::UTF8)
     [System.IO.File]::WriteAllText((Join-Path $readmeNamedCodeRoot "payload.js"), "const hidden = ``$vs$vs$vs``;`n", [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText((Join-Path $sampleRoot "emoji-near-hidden.js"), "const hidden = ``$emoji$vs$vs$vs``;`n", [System.Text.Encoding]::UTF8)
+    $oversizedUnknownPath = Join-Path $sampleRoot "oversized-unknown.blob"
+    $oversizedStream = [System.IO.File]::Open($oversizedUnknownPath, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+    try {
+        $oversizedStream.SetLength(2 * 1024 * 1024)
+    }
+    finally {
+        $oversizedStream.Dispose()
+    }
     $self = Invoke-Scanner -Options ([pscustomobject]@{
         rootPath = $sampleRoot
         filter = "*.js"
@@ -2346,6 +2366,17 @@ if ($SelfTest) {
     $readmeNamedCodeHit = @($self.results | Where-Object { $_.path -like "*README-old*" -and $_.severity -eq "high" }).Count
     if ($readmeNamedCodeHit -lt 1) {
         throw "Self-test failed: README-named JavaScript folder must not be downgraded as documentation."
+    }
+    $emojiSnippetHit = @($self.results | Where-Object { (Split-Path -Leaf $_.path) -eq "emoji-near-hidden.js" -and $_.snippet -like "*$emoji*" }).Count
+    if ($emojiSnippetHit -lt 1) {
+        throw "Self-test failed: invisible Unicode snippets must preserve supplementary Unicode characters near the match."
+    }
+    $emojiSnippetError = @($self.errors | Where-Object { $_.path -like "*emoji-near-hidden.js" }).Count
+    if ($emojiSnippetError -gt 0) {
+        throw "Self-test failed: supplementary Unicode near invisible matches must not cause snippet errors."
+    }
+    if ($self.skippedFiles -lt 1) {
+        throw "Self-test failed: oversized unknown-extension files must be skipped before binary sampling."
     }
 
     $vscodeRoot = Join-Path $sampleRoot ".vscode"
@@ -2590,6 +2621,7 @@ try {
                         Write-Host "Scan cancelled by client. Server keeps running."
                     }
                     else {
+                        Write-Host ("Scan request failed: " + (ConvertTo-MaskedText -Text $_.Exception.Message))
                         try {
                             Write-NdjsonLine -Stream $stream -Object @{ type = "error"; error = (ConvertTo-SafeApiErrorMessage -Message $_.Exception.Message) }
                         }
@@ -2611,6 +2643,7 @@ try {
             }
         }
         catch {
+            Write-Host ("Request failed: " + (ConvertTo-MaskedText -Text $_.Exception.Message))
             try {
                 Send-Json -Client $client -Object @{ ok = $false; error = (ConvertTo-SafeApiErrorMessage -Message $_.Exception.Message) } -StatusCode 500
             }
