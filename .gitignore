@@ -9,3 +9,4 @@ glassworm-scan-*.json
 invisible-payload-scan-*.json
 # internal planning doc — not for release / not pushed
 docs/plan-v0.4-improvement.md
+docs/plan-v0.4.2-improvement.md
