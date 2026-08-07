@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "0.5",
+  "updatedAt": "2026-08-07",
+  "description": "Confirmed 2026 npm supply-chain incidents. Package names alone are not treated as malicious. Critical version matches require an exact package and version; targeted node_modules scanning only reads the named package families and still requires a published IOC match to report malicious code.",
+  "rulesets": [
+    {
+      "id": "recent-npm-supply-chain-2026-08",
+      "name": "Recent npm supply-chain IOC rules",
+      "sourceNote": "Based on public technical incident reports from Socket Research for the Keyv/Cacheable, AsyncAPI, Joyfill, and Alibaba-targeted campaigns, plus the publicly reported Red Hat Miasma version subset. Entries are deliberately limited to confirmed versions and high-specificity payload markers.",
+      "stringIocs": [
+        "Math_Symbol.js",
+        "math_init.js",
+        "gh-token-monitor",
+        "miasma-train-p1",
+        "QmQobZSp1wRPrpSEQ56qnyq7ecZh5Bg5k1fnjt4SUwwHb9",
+        "__RT_SPAWN_CHAIN_B",
+        "A9-0135-3",
+        "TMfKQEd7TJJa5xNZJZ2Lep838vrzrs7mAP",
+        "Sec-V: A9-0135-3",
+        "__INJECT_MARKER__",
+        "3201d407b7899a12d6d439950511c6a5"
+      ],
+      "targetedNodeModulePathPatterns": [
+        "[\\\\/]node_modules[\\\\/](keyv|cacheable|flat-cache|cacheable-request|file-entry-cache|cache-manager)[\\\\/].+\\.(js|mjs|cjs)$",
+        "[\\\\/]node_modules[\\\\/]@asyncapi[\\\\/](generator-helpers|generator-components|generator|specs)[\\\\/].+\\.(js|mjs|cjs)$",
+        "[\\\\/]node_modules[\\\\/]@joyfill[\\\\/](layouts|components)[\\\\/].+\\.(js|mjs|cjs)$",
+        "[\\\\/]node_modules[\\\\/](lib-mtop|cloud-config-fetcher|local-config-parser|smart-config-manager)[\\\\/].+\\.(js|mjs|cjs)$"
+      ],
+      "packageVersionRules": [
+        { "name": "keyv", "versions": ["6.0.0"], "message": "Confirmed Keyv/Cacheable campaign package version matched. This version carried a malicious preinstall loader." },
+        { "name": "@thiennq/docs-viewer", "versions": ["1.6.2"], "message": "Confirmed Keyv/Cacheable campaign package version matched." },
+        { "name": "@cacheable/net", "versions": ["2.1.1"], "message": "Confirmed Keyv/Cacheable campaign package version matched." },
+        { "name": "@cacheable/node-cache", "versions": ["3.1.2"], "message": "Confirmed Keyv/Cacheable campaign package version matched." },
+        { "name": "cacheable", "versions": ["2.5.1"], "message": "Confirmed Keyv/Cacheable campaign package version matched." },
+        { "name": "flat-cache", "versions": ["6.1.24"], "message": "Confirmed Keyv/Cacheable campaign package version matched." },
+        { "name": "cacheable-request", "versions": ["13.0.20"], "message": "Confirmed Keyv/Cacheable campaign package version matched." },
+        { "name": "@cacheable/memory", "versions": ["2.2.1"], "message": "Confirmed Keyv/Cacheable campaign package version matched." },
+        { "name": "file-entry-cache", "versions": ["11.1.6"], "message": "Confirmed Keyv/Cacheable campaign package version matched." },
+        { "name": "@cacheable/utils", "versions": ["2.5.1"], "message": "Confirmed Keyv/Cacheable campaign package version matched." },
+        { "name": "cache-manager", "versions": ["7.2.10"], "message": "Confirmed Keyv/Cacheable campaign package version matched." },
+        { "name": "@asyncapi/generator-helpers", "versions": ["1.1.1"], "message": "Confirmed AsyncAPI Miasma campaign package version matched. The payload runs when the module is imported." },
+        { "name": "@asyncapi/generator-components", "versions": ["0.7.1"], "message": "Confirmed AsyncAPI Miasma campaign package version matched. The payload runs when the module is imported." },
+        { "name": "@asyncapi/generator", "versions": ["3.3.1"], "message": "Confirmed AsyncAPI Miasma campaign package version matched. The payload runs when the module is imported." },
+        { "name": "@asyncapi/specs", "versions": ["6.11.2", "6.11.2-alpha.1"], "message": "Confirmed AsyncAPI Miasma campaign package version matched. The payload runs when the module is imported." },
+        { "name": "@joyfill/layouts", "versions": ["0.1.2-2773.beta.0"], "message": "Confirmed Joyfill package version matched. The payload runs when the module is imported." },
+        { "name": "@joyfill/components", "versions": ["4.0.0-rc24-2773-beta.4"], "message": "Confirmed Joyfill package version matched. The published artifact contains a related implant." },
+        { "name": "@redhat-cloud-services/frontend-components", "versions": ["7.7.2", "7.7.3", "7.7.4", "7.7.5"], "message": "Publicly reported Red Hat Miasma affected-version subset matched. Confirm the exact lockfile entry and advisory before remediation." },
+        { "name": "@redhat-cloud-services/compliance-client", "versions": ["4.0.3", "4.0.4", "4.0.5", "4.0.6"], "message": "Publicly reported Red Hat Miasma affected-version subset matched. Confirm the exact lockfile entry and advisory before remediation." },
+        { "name": "@redhat-cloud-services/rbac-client", "versions": ["9.0.3", "9.0.4", "9.0.5", "9.0.6"], "message": "Publicly reported Red Hat Miasma affected-version subset matched. Confirm the exact lockfile entry and advisory before remediation." }
+      ]
+    }
+  ]
+}

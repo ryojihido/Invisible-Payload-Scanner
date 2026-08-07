@@ -381,9 +381,9 @@
     <div class="title-row">
       <div class="header-main">
         <h1>Invisible Payload Scanner</h1>
-        <div class="subtitle" data-i18n="subtitle">不可視Unicode + npm / エディタ自動実行 / Git hook の実行前チェック</div>
+        <div class="subtitle" data-i18n="subtitle">不可視Unicode + npm / import時実行 / エディタ自動実行 / Git hook の実行前チェック</div>
       </div>
-      <span class="release-badge">v0.4.1 Verdict-First UX</span>
+      <span class="release-badge">v0.5.0 Evidence-First Supply Chain Scan</span>
       <div class="language-switch" aria-label="Language">
         <button id="langJa" type="button" data-lang="ja">JA</button>
         <button id="langEn" type="button" data-lang="en">EN</button>
@@ -405,11 +405,11 @@
         <div class="field span-4">
           <label for="scanMode" data-i18n="scanMode.label">スキャン種別</label>
           <select id="scanMode">
-            <option value="full-safety-pre-scan" data-i18n="scanMode.full">両方まとめて確認（v0.4おすすめ）</option>
+            <option value="full-safety-pre-scan" data-i18n="scanMode.full">両方まとめて確認（v0.5おすすめ）</option>
             <option value="invisible-unicode" data-i18n="scanMode.invisible">不可視Unicodeだけ確認</option>
             <option value="supply-chain-ioc" data-i18n="scanMode.supply">npm / エディタ / AIエージェント設定だけ確認</option>
           </select>
-          <div class="hint" data-i18n="scanMode.hint">Safety Pre-Scanは、不可視Unicodeに加えて既知IoC、folderOpen、install script、Git hookも確認します。</div>
+          <div class="hint" data-i18n="scanMode.hint">Safety Pre-Scanは、不可視Unicodeに加えて確定IoC、import時実行、folderOpen、install script、Git hookも確認します。</div>
         </div>
         <div class="field span-4">
           <label for="filter" data-i18n="filter.label">ファイル名フィルタ</label>
@@ -453,7 +453,7 @@
             <input id="supplyNodeModulesFullScan" type="checkbox" style="width: auto; margin-right: 6px;">
             <span data-i18n="nodeModules.label">node_modules 全体も詳しく確認する</span>
           </label>
-          <div class="hint" data-i18n="nodeModules.hint">通常はオフのままで、node_modules内は package.json だけ確認します。オンにすると時間がかかります。</div>
+          <div class="hint" data-i18n="nodeModules.hint">通常はオフのままで、package.jsonに加え確定事案に関係する依存だけを限定確認します。オンにすると全体を詳しく確認します。</div>
         </div>
         <div id="customPatternWrap" class="field span-12 hidden">
           <label for="customPattern" data-i18n="customPattern.label">カスタム正規表現</label>
@@ -523,7 +523,7 @@
 
     const I18N = {
       ja: {
-        "subtitle": "不可視Unicode + npm / エディタ自動実行 / Git hook の実行前チェック",
+        "subtitle": "不可視Unicode + npm / import時実行 / エディタ自動実行 / Git hook の実行前チェック",
         "rootPath.label": "スクリーニング対象フォルダ",
         "rootPath.hint1": "自動読み込みはしません。検知したいフォルダパスをここに入力してください。",
         "rootPath.placeholder": "例: C:\\path\\to\\project または D:\\work\\repo",
@@ -531,10 +531,10 @@
         "rootPath.hint3": "このツールは指定フォルダ配下のファイルを読み取り検索します。検索対象ファイルは実行しません。",
         "notice.default": "通常はこのままスキャンできます。下の詳細設定は、対象ファイルを絞りたい時や誤検知を減らしたい時だけ変更してください。",
         "scanMode.label": "スキャン種別",
-        "scanMode.full": "両方まとめて確認（v0.4おすすめ）",
+        "scanMode.full": "両方まとめて確認（v0.5おすすめ）",
         "scanMode.invisible": "不可視Unicodeだけ確認",
         "scanMode.supply": "npm / エディタ / AIエージェント設定だけ確認",
-        "scanMode.hint": "Safety Pre-Scanは、不可視Unicodeに加えて既知IoC、folderOpen、install script、Git hookも確認します。",
+        "scanMode.hint": "Safety Pre-Scanは、不可視Unicodeに加えて確定IoC、import時実行、folderOpen、install script、Git hookも確認します。",
         "filter.label": "ファイル名フィルタ",
         "filter.hint": "`;` 区切りで複数指定できます。全件なら `*`。",
         "rule.label": "検索ルール",
@@ -554,7 +554,7 @@
         "maxFileSize.label": "最大ファイルサイズMB",
         "maxFileSize.hint": "公開版では安全のため100MB以下に制限しています。",
         "nodeModules.label": "node_modules 全体も詳しく確認する",
-        "nodeModules.hint": "通常はオフのままで、node_modules内は package.json だけ確認します。オンにすると時間がかかります。",
+        "nodeModules.hint": "通常はオフのままで、package.jsonに加え確定事案に関係する依存だけを限定確認します。オンにすると全体を詳しく確認します。",
         "customPattern.label": "カスタム正規表現",
         "buttons.scan": "スキャン開始",
         "buttons.export": "結果をJSON保存",
@@ -655,7 +655,7 @@
         "progress.counts": "候補 {candidateFiles} 件 / 走査 {scannedFiles} 件 / 検出 {matchCount} 件"
       },
       en: {
-        "subtitle": "Pre-run check for invisible Unicode, npm, editor auto-run, and Git hooks",
+        "subtitle": "Pre-run check for invisible Unicode, npm import-time payloads, editor auto-run, and Git hooks",
         "rootPath.label": "Folder to screen",
         "rootPath.hint1": "Nothing is loaded automatically. Paste the folder path you want to check.",
         "rootPath.placeholder": "Example: C:\\path\\to\\project or D:\\work\\repo",
@@ -663,10 +663,10 @@
         "rootPath.hint3": "This tool reads and searches files under the selected folder. It does not execute target files.",
         "notice.default": "You can usually scan with the defaults. Change advanced settings only when you need to narrow the target or reduce noise.",
         "scanMode.label": "Scan type",
-        "scanMode.full": "Check both together (v0.4 recommended)",
+        "scanMode.full": "Check both together (v0.5 recommended)",
         "scanMode.invisible": "Invisible Unicode only",
         "scanMode.supply": "npm / editor / AI-agent settings only",
-        "scanMode.hint": "Safety Pre-Scan checks known IOCs, folderOpen tasks, install scripts, and Git hooks in addition to invisible Unicode.",
+        "scanMode.hint": "Safety Pre-Scan checks confirmed IOCs, import-time payloads, folderOpen tasks, install scripts, and Git hooks in addition to invisible Unicode.",
         "filter.label": "Filename filter",
         "filter.hint": "Separate multiple patterns with `;`. Use `*` for all files.",
         "rule.label": "Search rule",
@@ -686,7 +686,7 @@
         "maxFileSize.label": "Max file size MB",
         "maxFileSize.hint": "The public build caps this at 100 MB for safety.",
         "nodeModules.label": "Scan all of node_modules in detail",
-        "nodeModules.hint": "Usually leave this off. With it off, node_modules only checks package.json files. Turning it on can take longer.",
+        "nodeModules.hint": "Usually leave this off. It checks package.json plus narrowly targeted dependencies from confirmed incidents; turning it on scans all dependencies in detail.",
         "customPattern.label": "Custom regular expression",
         "buttons.scan": "Start scan",
         "buttons.export": "Save results as JSON",

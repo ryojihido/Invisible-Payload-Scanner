@@ -4,7 +4,7 @@
 
 外部に送信せず、あなたのPCの中だけで動きます。コマンド操作は不要。ダウンロードして展開し、`.cmd` をダブルクリックするだけで、ブラウザの画面から確認できます。
 
-![Invisible Payload Scanner：v0.4.1 の起動画面](docs/preview.png)
+![Invisible Payload Scanner：v0.5.0 の起動画面](docs/preview.png)
 
 英語版は [README.en.md](README.en.md)。安全設計と報告範囲は [SECURITY.ja.md](SECURITY.ja.md)（英語版 [SECURITY.md](SECURITY.md)）にまとめています。
 
@@ -31,7 +31,7 @@
 
 ## 使い方（3ステップ）
 
-1. **ダウンロードして展開** — GitHubのReleasesから最新の `InvisiblePayloadScanner-v0.4.1.zip` を入手して展開します。**まだ `npm install`・ビルド・起動はしないでください。**
+1. **ダウンロードして展開** — GitHubのReleasesから最新の `InvisiblePayloadScanner-v0.5.0.zip` を入手して展開します。**まだ `npm install`・ビルド・起動はしないでください。**
 2. **`Start-InvisiblePayloadScanner.cmd` をダブルクリック** — ローカルのWeb UIが起動し、ブラウザが開きます。
    - ⚠ **「WindowsによってPCが保護されました」**（SmartScreen）が出ることがあります。これは、同梱のローカルスクリプトを動かすための表示です。**「詳細情報」→「実行」** で進めてください。この扱いは、このツール同梱の `.ps1` だけに限ること。**出所不明の `.cmd` / `.ps1` に同じことをしないでください。**
 3. **フォルダを選んでスキャン** — 確認したいプロジェクトフォルダのパスを貼り付けて `スキャン開始` を押します。フォルダの大きさに応じて数秒〜で**判定カード**が出ます。
@@ -41,9 +41,9 @@
 
 ---
 
-## 判定の見方（v0.4.1 Verdict-First）
+## 判定の見方（v0.5.0 Evidence-First Supply Chain Scan）
 
-![Invisible Payload Scanner：判定カードの表示例](docs/preview-verdict.png)
+![Invisible Payload Scanner：v0.5.0 Supply Chain Scanの検出例](docs/preview-SupplyChainScan.png)
 
 スキャンが終わると、まず大きな**判定カード**が出ます。詳細の表より先に、「**で、このフォルダは触っていいの？**」に答えます。
 
@@ -65,9 +65,14 @@
 
 ---
 
-## v0.4.1「Verdict-First UX」の新しいところ
+## v0.5.0「Evidence-First Supply Chain Scan」の新しいところ
 
-v0.4.1は、v0.4.0の判定カード、スキャン中止、SHA-256確認、download-and-execute検出をそのまま引き継ぎ、巨大なモデルファイルを含むフォルダでもスキャンが途中停止しないよう修正した安定化版です。
+v0.5.0は、v0.4.1までの判定カード、スキャン中止、SHA-256確認、download-and-execute検出を引き継ぎ、2026年の確定したnpm供給網事案を追加確認します。install時に動くものだけでなく、**importした時に動く**型も対象です。
+
+- **確定版の照合** — `package.json` とlockfileから、公開済みの侵害パッケージ・バージョンを確認します。パッケージ名だけでは危険判定にしません。
+- **依存コードの限定確認** — 通常は`node_modules`全体を読まず、確定事案に関係する依存パッケージだけを限定読取りします。公開済みの固有IOCが実際に一致した時だけ危険として表示します。
+- **import時実行への対応** — `npm install --ignore-scripts`でも防げない型があるため、install scriptの有無だけで安全とは判定しません。
+- **v0.4.1の安定化を継承** — 数GB級モデルファイルを含むフォルダでの停止防止、絵文字付近の抜粋、マスク済み診断表示もそのまま含みます。
 
 - **巨大モデルファイルの安全なスキップ** — `.safetensors` や `.pt` などの数GB級ファイルが混ざっていても、最大ファイルサイズ判定で先にスキップし、候補ファイル列挙中のエラーを防ぎます。
 - **不可視文字周辺の絵文字対応** — 不可視Unicodeの近くに絵文字などの補助面Unicodeがあっても、検出結果の抜粋生成で失敗しないようにしました。
@@ -85,7 +90,7 @@ v0.4.1は、v0.4.0の判定カード、スキャン中止、SHA-256確認、down
 展開する前に、PowerShellで次の1行を実行してください（ファイル名はダウンロードしたバージョンに合わせます）:
 
 ```powershell
-Get-FileHash .\InvisiblePayloadScanner-v0.4.1.zip -Algorithm SHA256
+Get-FileHash .\InvisiblePayloadScanner-v0.5.0.zip -Algorithm SHA256
 ```
 
 表示された英数字が、GitHub Releaseページに記載された **zip用SHA-256** と同じなら本物です。違う場合は使わずに、Releaseページからダウンロードし直してください。
@@ -102,7 +107,7 @@ Get-FileHash .\InvisiblePayloadScanner-v0.4.1.zip -Algorithm SHA256
 - **AIエージェント向けの指示ファイル** — `CLAUDE.md` / `AGENTS.md` / `.cursor/rules` など
 - **危険な「取得して実行」** — `curl|bash`、`iwr|iex`、`powershell -enc`、LOLBin（v0.4.0で追加）
 - **CI／Git連携の危険コマンド候補** — GitHub Actions workflow、`.husky/` / `.githooks/`
-- **既知のnpmサプライチェーンIoC** — 公開された攻撃の痕跡（例：2026年5月の TanStack 事案のIoC ほか）
+- **既知のnpmサプライチェーンIoC** — 公開された攻撃の痕跡（TanStack、Keyv/Cacheable、AsyncAPI、Joyfillなどの確定IOC）
 
 ## これは何ではないか（正直に）
 
@@ -313,6 +318,12 @@ v0.4の追加ルールは `rules/v0.4/` にあります。
 
 safe-patternsは警告を完全に消すものではありません。危険なdownload-and-execute、shell、base64/encoded payload、credential harvestingらしい語が同時に見つかる場合は、safe-patternsより危険判定を優先します。
 
+v0.5の追加ルールは `rules/v0.5/` にあります。
+
+- `recent-supply-chain-rules.json`: 2026年5月以降に公開されたnpm供給網事案の**確定したパッケージ・バージョン**と、公開された高特異度IOCを照合します。パッケージ名だけでは危険判定にしません。
+- 通常設定でも、確定事案に関係する依存パッケージ配下だけは、`package.json`以外のJavaScriptを限定読取りします。ただし危険として出すのは、公開済みの固有IOCが実際に一致した時だけです。全`node_modules`走査とは異なり、一般的な依存コードを一律に警告しません。
+- import時に動く事例も対象です。`npm install --ignore-scripts`だけでは防げないため、lockfileの確定版一致はインストール前の停止材料に、展開済み依存内のIOC一致は実行済み環境の確認材料になります。
+
 この機能は、パッケージ名だけで悪性と断定しません。`@tanstack/` のような名前空間一致は注意表示であり、危険度が上がるのは既知の悪性バージョン、既知IoC文字列、自動実行設定、install scriptの危険語などが重なった場合です。
 
 v0.3では、単独の文字列一致よりも組み合わせを重視します。たとえば `.vscode/tasks.json` や `.cursor/tasks.json` の `runOn: folderOpen` が `npm install` / `npm i` / `pnpm i` / `yarn install` / `bun i` などを起動し、同じプロジェクトの `package.json` に `prepare` / `postinstall` などのinstall lifecycle scriptがある場合は、複合リスクとして追加表示します。
@@ -427,16 +438,17 @@ U+FE0F U+FE0F U+FE0F U+FE0F
 
 ## リリースの種類 / どれを使えばいい？
 
-通常は最新の **v0.4.1 Verdict-First UX** を使ってください。Web UIでは、まず `両方まとめて確認（v0.4おすすめ）` のまま使い、不可視Unicodeだけ確認したい時にスキャン種別を切り替えます。
+通常は最新の **v0.5.0 Evidence-First Supply Chain Scan（根拠重視のサプライチェーン事前チェック）** を使ってください。Web UIでは、まず `両方まとめて確認（v0.5おすすめ）` のまま使い、不可視Unicodeだけ確認したい時にスキャン種別を切り替えます。
 
-- **v0.4.1 Verdict-First UX（推奨）** — v0.4.0の機能に加え、数GB級モデルファイルを含むフォルダでのスキャン停止を修正。
+- **v0.5.0 Evidence-First Supply Chain Scan（推奨）** — 確定npm供給網事案の版数・IOC照合と、対象依存だけの限定確認を追加。import時実行の型も確認対象。
+- **v0.4.1 Verdict-First UX（履歴）** — v0.4.0の機能に加え、数GB級モデルファイルを含むフォルダでのスキャン停止を修正。
 - **v0.4.0 Verdict-First UX（履歴）** — 検出結果を 🔴🟡🟢 の判定と「次の一手」で表示。スキャン中止、SHA-256確認、download-and-execute検出を追加。ただし、数GB級モデルファイルを含むフォルダでスキャンが止まるバグがあり、v0.4.1で修正しました。
 - **v0.3.1 Context-Aware Triage** — 検出シグナルと対応優先度を分けて表示。UIは日本語/英語を切り替え可能。
 - **v0.3.0 Contagious Interview Pre-Scan** — `npm install`・エディタ・AIエージェント・Git hook 周辺の自動実行設定を確認。
 - **v0.2.0 Safety Pre-Scan** — 不可視Unicodeに加え、npmサプライチェーンIoC・自動実行設定を確認。
 - **v0.1.0 Classic** — 不可視Unicode（GlassWorm系・Trojan Source系）専用の軽量版。
 
-既存の `v0.1.0` はそのまま残し、リリース済みzipは差し替えません。新しい確認範囲と巨大ファイル修正が必要な場合は `v0.4.1` 以降を使ってください。
+既存の `v0.1.0` はそのまま残し、リリース済みzipは差し替えません。今回のnpm供給網事案まで含めて確認したい場合は `v0.5.0` 以降を使ってください。
 
 ---
 

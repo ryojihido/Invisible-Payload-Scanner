@@ -4,7 +4,7 @@
 
 It sends nothing to the internet; everything runs on your own PC. No command line needed: download, unzip, and double-click a `.cmd` to check from a browser screen.
 
-![Invisible Payload Scanner: v0.4.1 launch screen](docs/preview.png)
+![Invisible Payload Scanner: v0.5.0 launch screen](docs/preview.png)
 
 Japanese version: [README.md](README.md). See [SECURITY.md](SECURITY.md) (Japanese: [SECURITY.ja.md](SECURITY.ja.md)) for the security policy and reporting scope.
 
@@ -31,7 +31,7 @@ Interview tasks, sample code, a repo a friend sent, a project you had an AI gene
 
 ## How to use it (3 steps)
 
-1. **Download & unzip** the latest `InvisiblePayloadScanner-v0.4.1.zip` from Releases. **Don't `npm install`, build, or run it yet.**
+1. **Download & unzip** the latest `InvisiblePayloadScanner-v0.5.0.zip` from Releases. **Don't `npm install`, build, or run it yet.**
 2. **Double-click `Start-InvisiblePayloadScanner.cmd`.** A local Web UI opens in your browser.
    - ⚠ Windows SmartScreen ("Windows protected your PC") may appear. That is expected for running this bundled local script — click **More info → Run anyway**. Limit this only to this tool's bundled `.ps1`; never do the same for `.cmd` / `.ps1` files of unknown origin. (The `.cmd` launcher uses `-ExecutionPolicy Bypass` solely to run the bundled `Start-InvisiblePayloadScanner.ps1`.)
 3. **Pick a folder and scan.** Paste the path of the project folder you want to check and press **Scan**. A **verdict card** appears within a few seconds (depending on folder size).
@@ -41,9 +41,9 @@ Interview tasks, sample code, a repo a friend sent, a project you had an AI gene
 
 ---
 
-## Reading the verdict (v0.4.1 Verdict-First)
+## Reading the verdict (v0.5.0 Evidence-First Supply Chain Scan)
 
-![Invisible Payload Scanner: verdict card example](docs/preview-verdict.png)
+![Invisible Payload Scanner: v0.5.0 Supply Chain Scan findings example](docs/preview-SupplyChainScan.png)
 
 When the scan finishes, a large **verdict card** appears first — before any table — answering "so, is this folder safe to touch?"
 
@@ -62,9 +62,14 @@ To stop a running scan, press **Stop scan** next to the progress gauge (the serv
 
 ---
 
-## What's new in v0.4.1 "Verdict-First UX"
+## What's new in v0.5.0 "Evidence-First Supply Chain Scan"
 
-v0.4.1 keeps the v0.4.0 verdict card, scan cancel, SHA-256 verification, and download-and-execute detection, and adds stability fixes for folders that contain very large model files.
+v0.5.0 keeps the verdict card, scan cancel, SHA-256 verification, download-and-execute detection, and large-file stability fixes from v0.4.1. It adds narrowly scoped checks for confirmed 2026 npm supply-chain incidents, including payloads that run when a module is **imported**, not only while dependencies are installed.
+
+- **Confirmed-version matching** — checks `package.json` and lockfiles against publicly disclosed affected package versions. A package name on its own is not treated as malicious.
+- **Targeted dependency-source checks** — normally the scanner does not read all of `node_modules`; it reads only dependency families named by confirmed incident rules, and reports malicious code only if a published high-specificity IOC actually matches.
+- **Import-time payload coverage** — `npm install --ignore-scripts` is not enough for packages that run an implant when imported, so the scanner does not equate a missing lifecycle script with safety.
+- **v0.4.1 stability retained** — safe skipping of multi-GB model files, robust Unicode snippets near emoji, and masked PowerShell diagnostics remain included.
 
 - **Safe skipping for large model files** — multi-GB files such as `.safetensors` or `.pt` are skipped by the maximum-file-size check before binary sampling, avoiding scan failures while candidate files are being counted.
 - **Supplementary Unicode near invisible matches** — snippets now handle emoji and other supplementary Unicode characters near invisible-Unicode findings.
@@ -82,7 +87,7 @@ v0.4.1 keeps the v0.4.0 verdict card, scan cancel, SHA-256 verification, and dow
 Before extracting, run this one line in PowerShell (adjust the file name to the version you downloaded):
 
 ```powershell
-Get-FileHash .\InvisiblePayloadScanner-v0.4.1.zip -Algorithm SHA256
+Get-FileHash .\InvisiblePayloadScanner-v0.5.0.zip -Algorithm SHA256
 ```
 
 If the displayed value matches the **zip SHA-256** listed on the GitHub Release page, the file is authentic. If it does not match, do not use it — download it again from the Release page. The startup PowerShell window also prints `Script SHA-256:` for the extracted `Start-InvisiblePayloadScanner.ps1` that is actually running. This is a different value from the zip archive's SHA-256. Code signing (Authenticode) is a future consideration; comparison against the SHA-256 listed on the GitHub Release is the current verification method.
@@ -97,7 +102,7 @@ If the displayed value matches the **zip SHA-256** listed on the GitHub Release 
 - **AI-agent instruction files** — `CLAUDE.md` / `AGENTS.md` / `.cursor/rules`
 - **Dangerous "fetch and run"** — `curl|bash`, `iwr|iex`, `powershell -enc`, LOLBins (new in v0.4.0)
 - **CI / Git danger commands** — GitHub Actions workflows, `.husky/` / `.githooks/`
-- **Known npm supply-chain IoCs** — traces from disclosed attacks (e.g. the May 2026 TanStack incident)
+- **Known npm supply-chain IoCs** — confirmed indicators from disclosed attacks, including TanStack, Keyv/Cacheable, AsyncAPI, and Joyfill
 
 ## What it is NOT (honestly)
 
@@ -268,6 +273,12 @@ v0.4 supplemental rules live under `rules/v0.4/`.
 
 Safe patterns never override remote download-and-execute, shell, encoded payload, or credential-harvesting indicators.
 
+v0.5 supplemental rules live under `rules/v0.5/`.
+
+- `recent-supply-chain-rules.json`: checks confirmed package-version pairs and published high-specificity IOCs from npm supply-chain incidents disclosed since May 2026. A package name alone is not a malicious finding.
+- With the normal setting, the scanner reads JavaScript below only the dependency families named by these confirmed-incident rules, in addition to `package.json`. It reports malicious dependency code only when a published IOC actually matches; it does not warn on ordinary dependency source en masse.
+- The rules also cover import-time payloads. A confirmed lockfile match is an install-before-stop signal; an IOC match inside an installed dependency is evidence to investigate an environment that may already have loaded the package.
+
 Package names alone are not treated as proof of compromise. Namespace matches such as `@tanstack/` are prompts for review. Stronger warnings require known affected versions, known IOC strings, auto-run settings, or install-script risk terms.
 
 v0.3 also adds compound findings. For example, if `.vscode/tasks.json` or `.cursor/tasks.json` runs `npm install`, `npm i`, `pnpm i`, `yarn install`, or `bun i` on `folderOpen` and the same project has `prepare` / `postinstall` lifecycle scripts, the scanner reports the combination separately.
@@ -302,16 +313,17 @@ Recommended triage:
 
 ## Releases / which one should I use?
 
-Normally, use the latest **v0.4.1 Verdict-First UX**. In the Web UI, keep `両方まとめて確認（v0.4おすすめ）` (check both — recommended) selected, and switch the scan type only when you want invisible-Unicode-only checks.
+Normally, use the latest **v0.5.0 Evidence-First Supply Chain Scan**. In the Web UI, keep `両方まとめて確認（v0.5おすすめ）` (check both — recommended) selected, and switch the scan type only when you want invisible-Unicode-only checks.
 
-- **v0.4.1 Verdict-First UX (recommended)** — v0.4.0 plus a fix for scan failures in folders containing multi-GB model files.
+- **v0.5.0 Evidence-First Supply Chain Scan (recommended)** — adds confirmed npm incident version/IOC matching and targeted dependency inspection, including import-time payload patterns.
+- **v0.4.1 Verdict-First UX (historical)** — v0.4.0 plus a fix for scan failures in folders containing multi-GB model files.
 - **v0.4.0 Verdict-First UX (historical)** — verdict + next steps, scan cancel, SHA-256 verification, download-and-execute detection. It had a bug that could stop scans in folders containing multi-GB model files; v0.4.1 fixes it.
 - **v0.3.1 Context-Aware Triage** — separates the detection signal from response priority. The UI can switch between Japanese and English.
 - **v0.3.0 Contagious Interview Pre-Scan** — checks auto-run settings around npm install, editors, AI agents, and Git hooks.
 - **v0.2.0 Safety Pre-Scan** — invisible Unicode plus npm supply-chain IoCs and auto-run settings.
 - **v0.1.0 Classic** — lightweight, invisible-Unicode only (GlassWorm-style and Trojan Source-style).
 
-Existing `v0.1.0` release assets are kept as-is and not replaced. Use `v0.4.1` or later when you need the newer checks and the large-file scan fix.
+Existing `v0.1.0` release assets are kept as-is and not replaced. Use `v0.5.0` or later when you need the confirmed npm incident checks as well as the large-file scan fix.
 
 ---
 
