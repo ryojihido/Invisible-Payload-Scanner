@@ -13,3 +13,8 @@ v0.5.0 adds narrowly scoped protection for confirmed npm supply-chain incidents 
 ## Design boundary
 
 This release does not label a package as dangerous from a namespace or a generic obfuscation term alone. It also does not claim that provenance, OIDC publishing, or a clean package name proves safety. It is a local, static pre-run check for documented evidence; it does not replace incident response, EDR, or a dependency-security service.
+
+## Release archive
+
+- Archive: `InvisiblePayloadScanner-v0.5.0.zip`
+- SHA-256: `32FD62101EBF74EDE8B38885A59C8FED9B80F34DDB6ECB1D472600CD4864B9E6`

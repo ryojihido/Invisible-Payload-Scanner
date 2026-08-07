@@ -12,11 +12,11 @@
 
 ## zip作成とSHA-256
 
-1. `dist/` にリリースzipを作成する（例: `InvisiblePayloadScanner-v0.4.1.zip`）。
+1. `dist/` にリリースzipを作成する（例: `InvisiblePayloadScanner-v0.5.0.zip`）。
 2. SHA-256を算出する:
 
    ```powershell
-   Get-FileHash .\dist\InvisiblePayloadScanner-v0.4.1.zip -Algorithm SHA256
+   Get-FileHash .\dist\InvisiblePayloadScanner-v0.5.0.zip -Algorithm SHA256
    ```
 
 3. 算出したzip用SHA-256を **GitHub Releaseノートに必ず記載する**。
@@ -27,7 +27,7 @@
 ダウンロードしたzipが本物かどうかは、次の1行で確認できます:
 
 ```powershell
-Get-FileHash .\InvisiblePayloadScanner-v0.4.1.zip -Algorithm SHA256
+Get-FileHash .\InvisiblePayloadScanner-v0.5.0.zip -Algorithm SHA256
 ```
 
 表示された英数字が、GitHub Releaseページに記載されたzip用SHA-256と同じなら本物です。
