@@ -269,117 +269,76 @@ function ConvertFrom-PastedPath {
     return $normalized
 }
 
-function Get-DefaultSupplyChainRules {
-    return [pscustomobject]@{
-        schemaVersion = 1
-        updatedAt = "2026-05-13"
-        loadStatus = "fallback"
-        loadMessage = "rules/ioc-rules.json could not be loaded. Built-in minimal rules are active."
-        rulesets = @(
-            [pscustomobject]@{
-                id = "built-in-minimal"
-                name = "Built-in minimal IOC rules"
-                sourceNote = "Fallback rules used when rules/ioc-rules.json cannot be read."
-                stringIocs = @(
-                    "github:tanstack/router#79ac49eedf774dd4b0cfa308722bc463cfe5885c",
-                    "@tanstack/setup",
-                    "router_init.js",
-                    "tanstack_runner.js",
-                    "filev2.getsession.org",
-                    "seed1.getsession.org",
-                    "seed2.getsession.org",
-                    "seed3.getsession.org"
-                )
-                packageRules = @(
-                    [pscustomobject]@{
-                        namePattern = "^@tanstack/"
-                        severity = "medium"
-                        message = "TanStack package name found. Package name alone is not a malicious indicator; check version and IoCs."
-                    }
-                )
-                packageVersionRules = @()
-                dangerousCommandTerms = @("powershell", "pwsh", "cmd.exe", "curl", "wget", "iwr", "irm", "node -e", "python -c", "child_process", "exec", "spawn", "eval", "Buffer.from", "fromCharCode")
-                installScriptNames = @("preinstall", "install", "postinstall", "prepare", "prepack", "postpack")
+function Assert-RulePatterns {
+    param($Node)
+    if ($null -eq $Node -or $Node -is [string] -or $Node -is [ValueType]) { return }
+    if ($Node -is [array]) {
+        foreach ($item in $Node) { Assert-RulePatterns -Node $item }
+        return
+    }
+    foreach ($property in $Node.PSObject.Properties) {
+        if ($property.Name -in @("pattern", "namePattern", "targetedNodeModulePathPatterns", "allOfPatterns")) {
+            foreach ($pattern in (ConvertTo-Array $property.Value)) {
+                if ($pattern -isnot [string] -or [string]::IsNullOrWhiteSpace($pattern)) { throw "rules_invalid" }
+                [void][regex]::new($pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase, [TimeSpan]::FromSeconds(1))
             }
-        )
+        }
+        else { Assert-RulePatterns -Node $property.Value }
     }
 }
 
 function Get-SupplyChainRules {
-    $rulesPath = Join-Path $PSScriptRoot "rules\ioc-rules.json"
-    if (-not (Test-Path -LiteralPath $rulesPath -PathType Leaf)) {
-        return Get-DefaultSupplyChainRules
-    }
-
-    try {
-        $rules = (Read-TextFile -Path $rulesPath) | ConvertFrom-Json
-        $loadMessages = New-Object System.Collections.Generic.List[string]
-        [void]$loadMessages.Add("Bundled IOC rules loaded.")
-
-        $v03RulesPath = Join-Path $PSScriptRoot "rules\v0.3\contagious-interview-rules.json"
-        if (Test-Path -LiteralPath $v03RulesPath -PathType Leaf) {
-            try {
-                $v03Rules = (Read-TextFile -Path $v03RulesPath) | ConvertFrom-Json
-                $mergedRuleSets = @()
-                $mergedRuleSets += (ConvertTo-Array $rules.rulesets)
-                $mergedRuleSets += (ConvertTo-Array $v03Rules.rulesets)
-                $rules.rulesets = $mergedRuleSets
-                if (-not [string]::IsNullOrWhiteSpace([string]$v03Rules.updatedAt)) {
-                    $rules.updatedAt = [string]$v03Rules.updatedAt
+    $specs = @(
+        @{ path = "rules\ioc-rules.json"; field = "rulesets"; required = @("stringIocs", "packageRules", "packageVersionRules", "dangerousCommandTerms", "installScriptNames") },
+        @{ path = "rules\v0.3\contagious-interview-rules.json"; field = "rulesets"; required = @("dangerousCommandTerms", "remoteStagerTerms", "pipeExecutionTerms", "encodedPayloadTerms", "sensitiveHarvestTerms", "installScriptNames", "installCommandTerms", "taskAutoRunTerms", "gitHookNames") },
+        @{ path = "rules\v0.3\safe-patterns.json"; field = "safeCommandPatterns" },
+        @{ path = "rules\v0.4\download-and-execute-rules.json"; field = "downloadAndExecutePatterns" },
+        @{ path = "rules\v0.5\recent-supply-chain-rules.json"; field = "rulesets"; required = @("stringIocs", "targetedNodeModulePathPatterns", "packageVersionRules") },
+        @{ path = "rules\v0.6\october-2026-incidents.json"; field = "rulesets"; required = @("stringIocs", "targetedNodeModulePathPatterns", "packageVersionRules", "combinedIocs") }
+    )
+    $packs = @()
+    foreach ($spec in $specs) {
+        $path = Join-Path $PSScriptRoot $spec.path
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "rules_missing" }
+        try {
+            $pack = (Read-TextFile -Path $path) | ConvertFrom-Json
+            $items = $pack.($spec.field)
+            if ($null -eq $pack.schemaVersion -or [string]::IsNullOrWhiteSpace([string]$pack.updatedAt) -or $items -isnot [array] -or $items.Count -eq 0) { throw "rules_invalid" }
+            foreach ($item in $items) {
+                if ($spec.field -eq "rulesets") {
+                    if ([string]::IsNullOrWhiteSpace([string]$item.id)) { throw "rules_invalid" }
+                    foreach ($field in $spec.required) {
+                        if ($item.$field -isnot [array]) { throw "rules_invalid" }
+                    }
+                    if ($spec.required -contains "combinedIocs" -and $item.combinedIocs.Count -eq 0) { throw "rules_invalid" }
+                    foreach ($versionRule in $item.packageVersionRules) {
+                        if ([string]::IsNullOrWhiteSpace([string]$versionRule.name) -or $versionRule.versions -isnot [array] -or $versionRule.versions.Count -eq 0) { throw "rules_invalid" }
+                    }
+                    foreach ($nameRule in $item.packageRules) {
+                        if ([string]::IsNullOrWhiteSpace([string]$nameRule.namePattern) -or $nameRule.severity -notin @("critical", "high", "medium", "low", "info")) { throw "rules_invalid" }
+                    }
+                    foreach ($combinedRule in $item.combinedIocs) {
+                        foreach ($field in @("id", "fileName", "message", "recommendation")) {
+                            if ($combinedRule.$field -isnot [string] -or [string]::IsNullOrWhiteSpace($combinedRule.$field)) { throw "rules_invalid" }
+                        }
+                        if ($combinedRule.allOfPatterns -isnot [array] -or $combinedRule.allOfPatterns.Count -lt 2 -or @($combinedRule.allOfPatterns | Select-Object -Unique).Count -lt 2) { throw "rules_invalid" }
+                    }
                 }
-                [void]$loadMessages.Add("Supplemental v0.3 Contagious Interview rules loaded.")
+                elseif ([string]::IsNullOrWhiteSpace([string]$item.pattern)) { throw "rules_invalid" }
             }
-            catch {
-                [void]$loadMessages.Add("Supplemental v0.3 Contagious Interview rules could not be loaded.")
-            }
+            Assert-RulePatterns -Node $pack
+            $packs += $pack
         }
-
-        $safePatternsPath = Join-Path $PSScriptRoot "rules\v0.3\safe-patterns.json"
-        if (Test-Path -LiteralPath $safePatternsPath -PathType Leaf) {
-            try {
-                $safePatterns = (Read-TextFile -Path $safePatternsPath) | ConvertFrom-Json
-                $rules | Add-Member -NotePropertyName "safePatterns" -NotePropertyValue $safePatterns -Force
-                [void]$loadMessages.Add("Supplemental v0.3 safe command patterns loaded.")
-            }
-            catch {
-                [void]$loadMessages.Add("Supplemental v0.3 safe command patterns could not be loaded.")
-            }
-        }
-
-        $v04RulesPath = Join-Path $PSScriptRoot "rules\v0.4\download-and-execute-rules.json"
-        if (Test-Path -LiteralPath $v04RulesPath -PathType Leaf) {
-            try {
-                $v04Rules = (Read-TextFile -Path $v04RulesPath) | ConvertFrom-Json
-                $rules | Add-Member -NotePropertyName "downloadAndExecutePatterns" -NotePropertyValue (ConvertTo-Array $v04Rules.downloadAndExecutePatterns) -Force
-                [void]$loadMessages.Add("Supplemental v0.4 download-and-execute rules loaded.")
-            }
-            catch {
-                [void]$loadMessages.Add("Supplemental v0.4 download-and-execute rules could not be loaded.")
-            }
-        }
-
-        $v05RulesPath = Join-Path $PSScriptRoot "rules\v0.5\recent-supply-chain-rules.json"
-        if (Test-Path -LiteralPath $v05RulesPath -PathType Leaf) {
-            try {
-                $v05Rules = (Read-TextFile -Path $v05RulesPath) | ConvertFrom-Json
-                $mergedRuleSets = @()
-                $mergedRuleSets += (ConvertTo-Array $rules.rulesets)
-                $mergedRuleSets += (ConvertTo-Array $v05Rules.rulesets)
-                $rules.rulesets = $mergedRuleSets
-                [void]$loadMessages.Add("Supplemental v0.5 recent supply-chain IOC rules loaded.")
-            }
-            catch {
-                [void]$loadMessages.Add("Supplemental v0.5 recent supply-chain IOC rules could not be loaded.")
-            }
-        }
-
-        $rules | Add-Member -NotePropertyName "loadStatus" -NotePropertyValue "loaded" -Force
-        $rules | Add-Member -NotePropertyName "loadMessage" -NotePropertyValue ($loadMessages -join " ") -Force
-        return $rules
+        catch { throw "rules_invalid" }
     }
-    catch {
-        return Get-DefaultSupplyChainRules
-    }
+    $rules = $packs[0]
+    $rules.rulesets = @($packs[0].rulesets) + @($packs[1].rulesets) + @($packs[4].rulesets) + @($packs[5].rulesets)
+    $rules.updatedAt = @($packs | ForEach-Object { $_.updatedAt } | Sort-Object)[-1]
+    $rules | Add-Member -NotePropertyName safePatterns -NotePropertyValue $packs[2]
+    $rules | Add-Member -NotePropertyName downloadAndExecutePatterns -NotePropertyValue $packs[3].downloadAndExecutePatterns
+    $rules | Add-Member -NotePropertyName loadStatus -NotePropertyValue "loaded"
+    $rules | Add-Member -NotePropertyName loadMessage -NotePropertyValue "All six required bundled rule packs validated."
+    return $rules
 }
 
 function ConvertTo-Array {
@@ -500,7 +459,9 @@ function New-Finding {
         [string]$PathContext = "",
         [string]$SignalSeverity = "",
         [string]$Actionability = "",
-        [string]$TriageNote = ""
+        [string]$TriageNote = "",
+        [bool]$RemoteExecutionEvidence = $false,
+        [string]$ExecutionOperation = ""
     )
 
     $normalizedSeverity = $Severity.ToLowerInvariant()
@@ -518,6 +479,9 @@ function New-Finding {
     }
 
     return @{
+        findingId = [guid]::NewGuid().ToString("N")
+        remoteExecutionEvidence = $RemoteExecutionEvidence
+        executionOperation = (ConvertTo-MaskedText -Text $ExecutionOperation)
         severity = $normalizedSeverity
         signalSeverity = $SignalSeverity
         category = $Category
@@ -535,6 +499,12 @@ function New-Finding {
         runLength = $RunLength
         codePoints = $CodePoints
     }
+}
+
+function Add-ScanFinding {
+    param([Collections.Generic.List[object]]$Findings, $Finding)
+    if ($Findings.Count -ge 5000) { throw "result_limit" }
+    $Findings.Add($Finding)
 }
 
 function Get-EmptySeveritySummary {
@@ -590,7 +560,7 @@ function Get-PathContext {
     if ($Path -match "(?i)[\\/]\.local([\\/]|$)") {
         return "local-cache-or-sdk"
     }
-    if ($Path -match "(?i)[\\/]\.antigravity[\\/]extensions[\\/]" -or $Path -match "(?i)[\\/]\.vscode[\\/]extensions[\\/]") {
+    if ($Path -match "(?i)[\\/](\.antigravity|\.vscode|\.cursor)[\\/]extensions[\\/]") {
         return "editor-extension"
     }
     if ($Path -match "(?i)[\\/]_selftest([\\/]|$)") {
@@ -599,7 +569,7 @@ function Get-PathContext {
     if ($Path -match "(?i)[\\/]invisible-payload-scan-[^\\/]*\.json$") {
         return "scanner-report"
     }
-    if ($Path -match "(?i)[\\/]rules[\\/](v0\.3[\\/]|v0\.4[\\/])?(ioc-rules|contagious-interview-rules|safe-patterns|download-and-execute-rules)\.json$") {
+    if ($Path -match "(?i)[\\/]rules[\\/](v0\.[3456][\\/])?(ioc-rules|contagious-interview-rules|safe-patterns|download-and-execute-rules|recent-supply-chain-rules|october-2026-incidents)\.json$") {
         return "scanner-rule-file"
     }
     if ($Path -match "(?i)[\\/]Start-InvisiblePayloadScanner\.ps1$") {
@@ -667,8 +637,7 @@ function Test-SupplyCandidateFile {
                         return $true
                     }
                 }
-                catch {
-                }
+                catch { throw }
             }
         }
         return $false
@@ -795,8 +764,7 @@ function Get-SafeCommandMatch {
                 }
             }
         }
-        catch {
-        }
+        catch { throw }
     }
     return $null
 }
@@ -842,8 +810,7 @@ function Get-InstallCommandMatch {
                 }
             }
         }
-        catch {
-        }
+        catch { throw }
     }
     $shortTerms = @("npm i", "pnpm i", "bun i")
     $remainingTerms = @(Get-RuleTerms -Rules $Rules -PropertyName "installCommandTerms" | Where-Object { $shortTerms -notcontains [string]$_ })
@@ -873,8 +840,7 @@ function Get-RegexCommandMatch {
                 }
             }
         }
-        catch {
-        }
+        catch { throw }
     }
     return $null
 }
@@ -982,6 +948,7 @@ function Get-CommandRisk {
 
     return @{
         severity = $severity
+        remoteExecutionEvidence = ($null -ne $remoteMatch -and $null -ne $pipeMatch)
         indicators = @($indicators)
         dangerMatch = $dangerMatch
         remoteMatch = $remoteMatch
@@ -1057,7 +1024,7 @@ function Add-PackageNameFindings {
         if ([string]::IsNullOrWhiteSpace($message)) {
             $message = "Known affected package version matched."
         }
-        $Findings.Add((New-Finding -Severity "critical" -Category "known-malicious-package-version" -Path $Path -Line $Line -Match "$Name@$Version" -Message $message -Recommendation $recommendation))
+        Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity "critical" -Category "known-malicious-package-version" -Path $Path -Line $Line -Match "$Name@$Version" -Message $message -Recommendation $recommendation)
         return
     }
 
@@ -1069,12 +1036,11 @@ function Add-PackageNameFindings {
                     if (-not [string]::IsNullOrWhiteSpace($Version)) {
                         $matchText = "$Name@$Version"
                     }
-                    $Findings.Add((New-Finding -Severity ([string]$rule.severity) -Category "package-name-candidate" -Path $Path -Line $Line -Match $matchText -Message ([string]$rule.message) -Recommendation "Package name alone is not proof of compromise. Check the exact version, lockfile, and official advisory before running install."))
+                    Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity ([string]$rule.severity) -Category "package-name-candidate" -Path $Path -Line $Line -Match $matchText -Message ([string]$rule.message) -Recommendation "Package name alone is not proof of compromise. Check the exact version, lockfile, and official advisory before running install.")
                     return
                 }
             }
-            catch {
-            }
+            catch { throw }
         }
     }
 }
@@ -1107,9 +1073,7 @@ function ConvertTo-JsonValueText {
     try {
         return ($Value | ConvertTo-Json -Compress -Depth 12)
     }
-    catch {
-        return [string]$Value
-    }
+    catch { throw }
 }
 
 function Get-TaskRunOnValue {
@@ -1161,7 +1125,7 @@ function Add-DependencyFindings {
                     }
                     foreach ($badVersion in (ConvertTo-Array $exactRule.versions)) {
                         if ($depVersion -match ("(^|[^0-9A-Za-z.])" + [System.Text.RegularExpressions.Regex]::Escape([string]$badVersion) + "($|[^0-9A-Za-z.])")) {
-                            $Findings.Add((New-Finding -Severity "high" -Category "dependency-version-candidate" -Path $Path -Match "$depName@$depVersion" -Message "Dependency spec references a known affected package version." -Recommendation "Stop before install. Regenerate from a clean lockfile and update to the patched version listed in the advisory."))
+                            Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity "high" -Category "dependency-version-candidate" -Path $Path -Match "$depName@$depVersion" -Message "Dependency spec references a known affected package version." -Recommendation "Stop before install. Regenerate from a clean lockfile and update to the patched version listed in the advisory.")
                         }
                     }
                 }
@@ -1169,6 +1133,27 @@ function Add-DependencyFindings {
             Add-PackageNameFindings -Findings $Findings -Rules $Rules -Path $Path -Name $depName -Version ""
         }
     }
+}
+
+function Test-LoopbackUrlOnlySignal {
+    param($Risk, [string]$CommandText, $Rules)
+
+    if ($Risk.severity -ne "high" -or $null -eq $Risk.remoteMatch -or
+        $null -ne $Risk.dangerMatch -or $null -ne $Risk.pipeMatch -or
+        $null -ne $Risk.encodedMatch -or $null -ne $Risk.harvestMatch -or
+        $null -ne $Risk.installMatch -or $Risk.nodeImagePayload) { return $false }
+    $timeout = [TimeSpan]::FromSeconds(2)
+    $urlPattern = '(?i)https?://[^\s"''<>`|&;]+'
+    $urls = [regex]::Matches($CommandText, $urlPattern, [Text.RegularExpressions.RegexOptions]::None, $timeout)
+    if ($urls.Count -eq 0 -or $urls.Count -ne [regex]::Matches($CommandText, '(?i)https?://', [Text.RegularExpressions.RegexOptions]::None, $timeout).Count) { return $false }
+    foreach ($url in $urls) {
+        # Match literal authority before URI normalization: no suffix hosts, userinfo or encoded host names.
+        if (-not [regex]::IsMatch($url.Value, '(?i)^https?://(?:localhost|127\.0\.0\.1|\[::1\])(?::[0-9]{1,5})?(?:[/?#].*)?$', [Text.RegularExpressions.RegexOptions]::None, $timeout)) { return $false }
+        $parsed = $null
+        if (-not [uri]::TryCreate($url.Value, [UriKind]::Absolute, [ref]$parsed) -or $parsed.Port -lt 1 -or $parsed.Port -gt 65535) { return $false }
+    }
+    $remaining = [regex]::Replace($CommandText, $urlPattern, '', [Text.RegularExpressions.RegexOptions]::None, $timeout)
+    return $null -eq (Get-FirstTermMatch -Text $remaining -Terms (Get-RuleTerms -Rules $Rules -PropertyName "remoteStagerTerms"))
 }
 
 function Add-InstallScriptFindings {
@@ -1191,23 +1176,33 @@ function Add-InstallScriptFindings {
         $scriptText = [string]$script.Value
         $risk = Get-CommandRisk -Rules $Rules -CommandText $scriptText
         $isInstallScript = ($installNames -contains $name)
+        $isDependency = Test-InNodeModules -Path $Path
+
+        if ($isDependency -and $name -in @("prepare", "prepublish", "prepack", "postpack") -and $risk.severity -notin @("critical", "high") -and $null -eq $risk.pipeMatch) {
+            Add-ScanFinding -Findings $Findings -Finding (New-Finding -ExecutionOperation $name -Severity "info" -SignalSeverity $risk.severity -Category "dependency-development-script" -Path $Path -Match $name -Message "A dependency contains a development or packaging lifecycle script without detected high-risk command indicators." -Recommendation "Keep this as context. Review the script if working on, packing, publishing, linking or installing this dependency from source." -TriageNote "Dependency development/packaging metadata alone does not establish execution during ordinary use. Git, local and linked installs may run preparation scripts; this is not an allowlist." -Snippet $scriptText)
+            continue
+        }
+        if ($isDependency -and $name -match '^test(?::[A-Za-z0-9_-]+)*$' -and (Test-LoopbackUrlOnlySignal -Risk $risk -CommandText $scriptText -Rules $Rules)) {
+            Add-ScanFinding -Findings $Findings -Finding (New-Finding -ExecutionOperation $name -Severity "info" -SignalSeverity $risk.severity -Category "dependency-local-test-script" -Path $Path -Match (Format-CommandRiskMatch -Prefix $name -Risk $risk) -Message "A dependency test script references literal loopback URLs without other detected high-risk command indicators." -Recommendation "Keep this as test configuration context. A local address is not a safety guarantee; review the code before deliberately running dependency tests." -TriageNote "Only this named dependency test was lowered. External or ambiguous URLs, download tools, shell execution, encoded payloads and credential indicators retain their original priority." -Snippet $scriptText)
+            continue
+        }
 
         if ($isInstallScript) {
             if ($risk.severity -eq "critical") {
-                $Findings.Add((New-Finding -Severity "critical" -Category "install-script-download-exec" -Path $Path -Match (Format-CommandRiskMatch -Prefix $name -Risk $risk) -Message "Install-time lifecycle script combines remote, shell, obfuscation, or payload-execution indicators." -Recommendation "Do not run install. Review the script and repository source in an isolated environment before continuing." -Snippet $scriptText))
+                Add-ScanFinding -Findings $Findings -Finding (New-Finding -ExecutionOperation $name -RemoteExecutionEvidence $risk.remoteExecutionEvidence -Severity "critical" -Category "install-script-download-exec" -Path $Path -Match (Format-CommandRiskMatch -Prefix $name -Risk $risk) -Message "Install-time lifecycle script combines remote, shell, obfuscation, or payload-execution indicators." -Recommendation "Do not run install. Review the script and repository source in an isolated environment before continuing." -Snippet $scriptText)
             }
             elseif ($risk.severity -eq "high") {
-                $Findings.Add((New-Finding -Severity "high" -Category "install-script-danger-term" -Path $Path -Match (Format-CommandRiskMatch -Prefix $name -Risk $risk) -Message "Install-time lifecycle script contains a shell, network, obfuscation, or credential-related term." -Recommendation "Do not run install until you understand this lifecycle script." -Snippet $scriptText))
+                Add-ScanFinding -Findings $Findings -Finding (New-Finding -ExecutionOperation $name -RemoteExecutionEvidence $risk.remoteExecutionEvidence -Severity "high" -Category "install-script-danger-term" -Path $Path -Match (Format-CommandRiskMatch -Prefix $name -Risk $risk) -Message "Install-time lifecycle script contains a shell, network, obfuscation, or credential-related term." -Recommendation "Do not run install until you understand this lifecycle script." -Snippet $scriptText)
             }
             elseif ($null -ne $risk.safeMatch) {
-                $Findings.Add((New-Finding -Severity "info" -Category "install-script-allowlisted" -Path $Path -Match $name -Message "Install-time lifecycle script matches a local safe-pattern rule." -Recommendation "Still review unknown projects before install; this finding was lowered because the command matched the v0.3 safe-patterns list." -Snippet $scriptText))
+                Add-ScanFinding -Findings $Findings -Finding (New-Finding -ExecutionOperation $name -RemoteExecutionEvidence $risk.remoteExecutionEvidence -Severity "info" -Category "install-script-allowlisted" -Path $Path -Match $name -Message "Install-time lifecycle script matches a local safe-pattern rule." -Recommendation "Still review unknown projects before install; this finding was lowered because the command matched the v0.3 safe-patterns list." -Snippet $scriptText)
             }
             else {
-                $Findings.Add((New-Finding -Severity "medium" -Category "install-script-present" -Path $Path -Match $name -Message "Install-time lifecycle script is present." -Recommendation "This can be legitimate, but unknown projects should not be installed until the script is reviewed." -Snippet $scriptText))
+                Add-ScanFinding -Findings $Findings -Finding (New-Finding -ExecutionOperation $name -RemoteExecutionEvidence $risk.remoteExecutionEvidence -Severity "medium" -Category "install-script-present" -Path $Path -Match $name -Message "Install-time lifecycle script is present." -Recommendation "This can be legitimate, but unknown projects should not be installed until the script is reviewed." -Snippet $scriptText)
             }
         }
         elseif ($risk.severity -in @("critical", "high")) {
-            $Findings.Add((New-Finding -Severity ([string]$risk.severity) -Category "npm-script-danger-term" -Path $Path -Match (Format-CommandRiskMatch -Prefix $name -Risk $risk) -Message "A package.json script contains remote, shell, obfuscation, or credential-related indicators." -Recommendation "Review this script before running npm run, editor tasks, or AI-agent commands in this project." -Snippet $scriptText))
+            Add-ScanFinding -Findings $Findings -Finding (New-Finding -ExecutionOperation $name -RemoteExecutionEvidence $risk.remoteExecutionEvidence -Severity ([string]$risk.severity) -Category "npm-script-danger-term" -Path $Path -Match (Format-CommandRiskMatch -Prefix $name -Risk $risk) -Message "A package.json script contains remote, shell, obfuscation, or credential-related indicators." -Recommendation "Review this script before running npm run, editor tasks, or AI-agent commands in this project." -Snippet $scriptText)
         }
     }
 }
@@ -1241,7 +1236,35 @@ function Add-KnownIocFindings {
             elseif (Test-DocumentationPath -Path $Path) {
                 $severity = "low"
             }
-            $Findings.Add((New-Finding -Severity $severity -Category "known-ioc-string" -Path $Path -Line $pos.line -Column $pos.column -Match ([string]$ioc) -Message "Known public IOC string matched." -Recommendation "Stop before running this project. Confirm the source, package versions, and official advisory." -Snippet (Get-TextSnippet -Text $Text -Index $index -Length ([string]$ioc).Length)))
+            Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity $severity -Category "known-ioc-string" -Path $Path -Line $pos.line -Column $pos.column -Match ([string]$ioc) -Message "Known public IOC string matched." -Recommendation "Stop before running this project. Confirm the source, package versions, and official advisory." -Snippet (Get-TextSnippet -Text $Text -Index $index -Length ([string]$ioc).Length))
+        }
+    }
+}
+
+function Add-CombinedIocFindings {
+    param(
+        [System.Collections.Generic.List[object]]$Findings,
+        $Rules,
+        [string]$Path,
+        [string]$Text
+    )
+
+    foreach ($ruleset in (ConvertTo-Array $Rules.rulesets)) {
+        foreach ($rule in (ConvertTo-Array $ruleset.combinedIocs)) {
+            if ((Split-Path -Leaf $Path) -ne $rule.fileName) { continue }
+            $firstMatch = $null
+            $allMatched = $true
+            foreach ($pattern in $rule.allOfPatterns) {
+                $match = [regex]::Match($Text, $pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase, [TimeSpan]::FromSeconds(1))
+                if (-not $match.Success) { $allMatched = $false; break }
+                if ($null -eq $firstMatch) { $firstMatch = $match }
+            }
+            if (-not $allMatched) { continue }
+            $pathContext = Get-PathContext -Path $Path
+            $severity = "high"
+            if ($pathContext -in @("scanner-rule-file", "scanner-source", "scanner-selftest", "scanner-report")) { $severity = "info" }
+            $pos = Get-LineColumn -Text $Text -Index $firstMatch.Index
+            Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity $severity -SignalSeverity "high" -Category "known-ioc-combination" -Path $Path -Line $pos.line -Column $pos.column -Match $rule.id -Message $rule.message -Recommendation $rule.recommendation -Snippet (Get-TextSnippet -Text $Text -Index $firstMatch.Index -Length $firstMatch.Length))
         }
     }
 }
@@ -1267,28 +1290,19 @@ function Add-VscodeTaskFindings {
     try {
         $taskConfig = $Text | ConvertFrom-Json
     }
-    catch {
-        $hasRunOn = ($Text -match '"runOn"\s*:\s*"folderOpen"')
-        $risk = Get-CommandRisk -Rules $Rules -CommandText $Text
-        if ($hasRunOn -and ($risk.severity -in @("critical", "high"))) {
-            $Findings.Add((New-Finding -Severity ([string]$risk.severity) -Category "editor-folder-open-task-raw" -Path $Path -Match (Format-CommandRiskMatch -Prefix "runOn: folderOpen" -Risk $risk) -Message "$editorName task may run automatically when the folder opens and contains command-like indicators." -Recommendation "Open unknown projects in Restricted Mode and inspect tasks.json before trusting this folder."))
-        }
-        elseif ($hasRunOn) {
-            $Findings.Add((New-Finding -Severity "high" -Category "editor-folder-open-task-raw" -Path $Path -Match "runOn: folderOpen" -Message "$editorName task may run automatically when the folder opens." -Recommendation "Inspect the task command before opening this project normally."))
-        }
-        else {
-            $Findings.Add((New-Finding -Severity "low" -Category "editor-tasks-parse-error" -Path $Path -Match "tasks.json" -Message "$editorName tasks.json could not be parsed as JSON." -Recommendation "Review this file manually if it came from an unknown project."))
-        }
-        return
-    }
+    catch { throw "parse_failed" }
+    if ($null -eq $taskConfig -or $taskConfig -isnot [pscustomobject]) { throw "parse_failed" }
 
-    $tasks = @(ConvertTo-Array (Get-JsonPropertyValue -Object $taskConfig -Name "tasks"))
+    $taskList = $taskConfig.tasks
+    if ($null -ne $taskList -and $taskList -isnot [array]) { throw "parse_failed" }
+    $tasks = @(ConvertTo-Array $taskList)
     if ($tasks.Count -eq 0) {
         $tasks = @($taskConfig)
     }
 
     $added = $false
     foreach ($task in $tasks) {
+        if ($task -isnot [pscustomobject]) { throw "parse_failed" }
         $taskText = Get-TaskCommandText -Task $task
         $runOn = Get-TaskRunOnValue -Task $task
         $label = [string](Get-JsonPropertyValue -Object $task -Name "label")
@@ -1316,22 +1330,22 @@ function Add-VscodeTaskFindings {
             elseif ($risk.severity -eq "high") {
                 $severity = "high"
             }
-            $Findings.Add((New-Finding -Severity $severity -Category $category -Path $Path -Match (Format-CommandRiskMatch -Prefix "runOn: folderOpen / $label" -Risk $risk) -Message "$editorName task is configured to run automatically when the folder opens." -Recommendation "Open unknown projects in Restricted Mode and inspect tasks.json before trusting this folder." -Snippet $taskText))
+            Add-ScanFinding -Findings $Findings -Finding (New-Finding -RemoteExecutionEvidence $risk.remoteExecutionEvidence -Severity $severity -Category $category -Path $Path -Match (Format-CommandRiskMatch -Prefix "runOn: folderOpen / $label" -Risk $risk) -Message "$editorName task is configured to run automatically when the folder opens." -Recommendation "Open unknown projects in Restricted Mode and inspect tasks.json before trusting this folder." -Snippet $taskText)
             $added = $true
         }
         elseif ($type -in @("shell", "process")) {
             if ($risk.severity -in @("critical", "high")) {
-                $Findings.Add((New-Finding -Severity ([string]$risk.severity) -Category "editor-shell-task-danger-term" -Path $Path -Match (Format-CommandRiskMatch -Prefix $label -Risk $risk) -Message "$editorName shell/process task contains remote, shell, obfuscation, or credential-related indicators." -Recommendation "Review unknown project tasks before running them." -Snippet $taskText))
+                Add-ScanFinding -Findings $Findings -Finding (New-Finding -RemoteExecutionEvidence $risk.remoteExecutionEvidence -Severity ([string]$risk.severity) -Category "editor-shell-task-danger-term" -Path $Path -Match (Format-CommandRiskMatch -Prefix $label -Risk $risk) -Message "$editorName shell/process task contains remote, shell, obfuscation, or credential-related indicators." -Recommendation "Review unknown project tasks before running them." -Snippet $taskText)
             }
             else {
-                $Findings.Add((New-Finding -Severity "medium" -Category "editor-shell-task" -Path $Path -Match $label -Message "$editorName shell/process task is defined." -Recommendation "This can be legitimate, but review unknown project tasks before running them." -Snippet $taskText))
+                Add-ScanFinding -Findings $Findings -Finding (New-Finding -RemoteExecutionEvidence $risk.remoteExecutionEvidence -Severity "medium" -Category "editor-shell-task" -Path $Path -Match $label -Message "$editorName shell/process task is defined." -Recommendation "This can be legitimate, but review unknown project tasks before running them." -Snippet $taskText)
             }
             $added = $true
         }
     }
 
     if (-not $added) {
-        $Findings.Add((New-Finding -Severity "info" -Category "editor-tasks-present" -Path $Path -Match "tasks.json" -Message "$editorName tasks.json is present." -Recommendation "Review tasks before trusting an unknown project."))
+        Add-ScanFinding -Findings $Findings -Finding (New-Finding -RemoteExecutionEvidence $risk.remoteExecutionEvidence -Severity "info" -Category "editor-tasks-present" -Path $Path -Match "tasks.json" -Message "$editorName tasks.json is present." -Recommendation "Review tasks before trusting an unknown project.")
     }
 }
 
@@ -1347,6 +1361,9 @@ function Add-ClaudeSettingsFindings {
         return
     }
 
+    try { $settings = $Text | ConvertFrom-Json }
+    catch { throw "parse_failed" }
+    if ($null -eq $settings -or $settings -isnot [pscustomobject]) { throw "parse_failed" }
     $dangerTerms = @()
     foreach ($ruleset in (ConvertTo-Array $Rules.rulesets)) {
         $dangerTerms += (ConvertTo-Array $ruleset.dangerousCommandTerms)
@@ -1354,14 +1371,14 @@ function Add-ClaudeSettingsFindings {
 
     if ($Text -match '"hooks"\s*:') {
         if (Test-TextContainsAny -Text $Text -Terms $dangerTerms) {
-            $Findings.Add((New-Finding -Severity "high" -Category "ai-agent-hooks-danger-term" -Path $Path -Match "hooks" -Message "AI agent hooks are present and contain command-like terms." -Recommendation "Do not let an AI agent open or auto-run this project until the hooks are reviewed."))
+            Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity "high" -Category "ai-agent-hooks-danger-term" -Path $Path -Match "hooks" -Message "AI agent hooks are present and contain command-like terms." -Recommendation "Do not let an AI agent open or auto-run this project until the hooks are reviewed.")
         }
         else {
-            $Findings.Add((New-Finding -Severity "medium" -Category "ai-agent-hooks-present" -Path $Path -Match "hooks" -Message "AI agent hooks are present." -Recommendation "Hooks can be legitimate automation, but unknown project hooks should be reviewed first."))
+            Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity "medium" -Category "ai-agent-hooks-present" -Path $Path -Match "hooks" -Message "AI agent hooks are present." -Recommendation "Hooks can be legitimate automation, but unknown project hooks should be reviewed first.")
         }
     }
     else {
-        $Findings.Add((New-Finding -Severity "info" -Category "claude-settings-present" -Path $Path -Match ".claude/settings" -Message "Claude settings file is present." -Recommendation "Review agent settings before trusting an unknown project."))
+        Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity "info" -Category "claude-settings-present" -Path $Path -Match ".claude/settings" -Message "Claude settings file is present." -Recommendation "Review agent settings before trusting an unknown project.")
     }
 }
 
@@ -1393,18 +1410,18 @@ function Add-GitHubWorkflowFindings {
     }
     if ($risk.severity -eq "critical") {
         if ($isNestedWorkflow) {
-            $Findings.Add((New-Finding -Severity "medium" -SignalSeverity "critical" -Actionability "review-before-running-ci" -PathContext $workflowContext -TriageNote $triageNote -Category "nested-github-workflow-download-exec" -Path $Path -Match (Format-CommandRiskMatch -Prefix $workflowName -Risk $risk) -Message "Nested GitHub Actions workflow contains remote download, shell execution, encoded payload, or payload-staging indicators." -Recommendation "This is lower priority for local pre-run review because it is not a root workflow. Review it before running or enabling CI for that nested component." -Snippet $snippet))
+            Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity "medium" -SignalSeverity "critical" -Actionability "review-before-running-ci" -PathContext $workflowContext -TriageNote $triageNote -Category "nested-github-workflow-download-exec" -Path $Path -Match (Format-CommandRiskMatch -Prefix $workflowName -Risk $risk) -Message "Nested GitHub Actions workflow contains remote download, shell execution, encoded payload, or payload-staging indicators." -Recommendation "This is lower priority for local pre-run review because it is not a root workflow. Review it before running or enabling CI for that nested component." -Snippet $snippet)
         }
         else {
-            $Findings.Add((New-Finding -Severity "critical" -SignalSeverity "critical" -Actionability "stop-before-running-ci" -PathContext $workflowContext -Category "github-workflow-download-exec" -Path $Path -Match (Format-CommandRiskMatch -Prefix $workflowName -Risk $risk) -Message "GitHub Actions workflow contains remote download, shell execution, encoded payload, or payload-staging indicators." -Recommendation "Review the workflow before running CI, accepting pull requests, or trusting repository automation." -Snippet $snippet))
+            Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity "critical" -SignalSeverity "critical" -Actionability "stop-before-running-ci" -PathContext $workflowContext -Category "github-workflow-download-exec" -Path $Path -Match (Format-CommandRiskMatch -Prefix $workflowName -Risk $risk) -Message "GitHub Actions workflow contains remote download, shell execution, encoded payload, or payload-staging indicators." -Recommendation "Review the workflow before running CI, accepting pull requests, or trusting repository automation." -Snippet $snippet)
         }
     }
     elseif ($risk.severity -eq "high") {
         if ($isNestedWorkflow) {
-            $Findings.Add((New-Finding -Severity "low" -SignalSeverity "high" -Actionability "contextual-review" -PathContext $workflowContext -TriageNote $triageNote -Category "nested-github-workflow-danger-term" -Path $Path -Match (Format-CommandRiskMatch -Prefix $workflowName -Risk $risk) -Message "Nested GitHub Actions workflow contains command, network, obfuscation, or credential-related indicators." -Recommendation "Treat this as contextual CI review information unless you plan to run or enable automation for the nested component." -Snippet $snippet))
+            Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity "low" -SignalSeverity "high" -Actionability "contextual-review" -PathContext $workflowContext -TriageNote $triageNote -Category "nested-github-workflow-danger-term" -Path $Path -Match (Format-CommandRiskMatch -Prefix $workflowName -Risk $risk) -Message "Nested GitHub Actions workflow contains command, network, obfuscation, or credential-related indicators." -Recommendation "Treat this as contextual CI review information unless you plan to run or enable automation for the nested component." -Snippet $snippet)
         }
         else {
-            $Findings.Add((New-Finding -Severity "high" -SignalSeverity "high" -Actionability "stop-before-running-ci" -PathContext $workflowContext -Category "github-workflow-danger-term" -Path $Path -Match (Format-CommandRiskMatch -Prefix $workflowName -Risk $risk) -Message "GitHub Actions workflow contains command, network, obfuscation, or credential-related indicators." -Recommendation "Review the workflow before enabling or running repository automation." -Snippet $snippet))
+            Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity "high" -SignalSeverity "high" -Actionability "stop-before-running-ci" -PathContext $workflowContext -Category "github-workflow-danger-term" -Path $Path -Match (Format-CommandRiskMatch -Prefix $workflowName -Risk $risk) -Message "GitHub Actions workflow contains command, network, obfuscation, or credential-related indicators." -Recommendation "Review the workflow before enabling or running repository automation." -Snippet $snippet)
         }
     }
 }
@@ -1424,10 +1441,10 @@ function Add-AgentInstructionFindings {
     $risk = Get-CommandRisk -Rules $Rules -CommandText $Text
     $name = Split-Path -Leaf $Path
     if ($risk.severity -in @("critical", "high")) {
-        $Findings.Add((New-Finding -Severity "medium" -Category "ai-agent-instruction-danger-term" -Path $Path -Match (Format-CommandRiskMatch -Prefix $name -Risk $risk) -Message "AI agent instruction file contains command, network, obfuscation, or credential-related terms." -Recommendation "Treat this as a prompt-injection review hint. Read the instruction file before letting an AI agent operate on this project." -Snippet (Get-TextSnippet -Text $Text -Index 0 -Length ([Math]::Min(160, $Text.Length)))))
+        Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity "medium" -Category "ai-agent-instruction-danger-term" -Path $Path -Match (Format-CommandRiskMatch -Prefix $name -Risk $risk) -Message "AI agent instruction file contains command, network, obfuscation, or credential-related terms." -Recommendation "Treat this as a prompt-injection review hint. Read the instruction file before letting an AI agent operate on this project." -Snippet (Get-TextSnippet -Text $Text -Index 0 -Length ([Math]::Min(160, $Text.Length))))
     }
     else {
-        $Findings.Add((New-Finding -Severity "low" -Category "ai-agent-instruction-present" -Path $Path -Match $name -Message "AI agent instruction file is present." -Recommendation "Review project-provided AI instructions before allowing automated edits, shell commands, or dependency changes." -Snippet (Get-TextSnippet -Text $Text -Index 0 -Length ([Math]::Min(120, $Text.Length)))))
+        Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity "low" -Category "ai-agent-instruction-present" -Path $Path -Match $name -Message "AI agent instruction file is present." -Recommendation "Review project-provided AI instructions before allowing automated edits, shell commands, or dependency changes." -Snippet (Get-TextSnippet -Text $Text -Index 0 -Length ([Math]::Min(120, $Text.Length))))
     }
 }
 
@@ -1453,13 +1470,13 @@ function Add-GitHookFindings {
     }
 
     if ($risk.severity -eq "critical") {
-        $Findings.Add((New-Finding -Severity "critical" -Category "git-hook-download-exec" -Path $Path -Match (Format-CommandRiskMatch -Prefix $hookName -Risk $risk) -Message "Git hook file contains remote download, shell execution, encoded payload, or payload-staging indicators." -Recommendation "Do not run git commands that trigger this hook until the repository is reviewed in isolation." -Snippet $snippet))
+        Add-ScanFinding -Findings $Findings -Finding (New-Finding -RemoteExecutionEvidence $risk.remoteExecutionEvidence -Severity "critical" -Category "git-hook-download-exec" -Path $Path -Match (Format-CommandRiskMatch -Prefix $hookName -Risk $risk) -Message "Git hook file contains remote download, shell execution, encoded payload, or payload-staging indicators." -Recommendation "Do not run git commands that trigger this hook until the repository is reviewed in isolation." -Snippet $snippet)
     }
     elseif ($risk.severity -eq "high") {
-        $Findings.Add((New-Finding -Severity "high" -Category "git-hook-danger-term" -Path $Path -Match (Format-CommandRiskMatch -Prefix $hookName -Risk $risk) -Message "Git hook file contains command, obfuscation, or credential-related indicators." -Recommendation "Review this hook before running git commit, checkout, merge, push, or install steps in this repository." -Snippet $snippet))
+        Add-ScanFinding -Findings $Findings -Finding (New-Finding -RemoteExecutionEvidence $risk.remoteExecutionEvidence -Severity "high" -Category "git-hook-danger-term" -Path $Path -Match (Format-CommandRiskMatch -Prefix $hookName -Risk $risk) -Message "Git hook file contains command, obfuscation, or credential-related indicators." -Recommendation "Review this hook before running git commit, checkout, merge, push, or install steps in this repository." -Snippet $snippet)
     }
     elseif ($isKnownHook) {
-        $Findings.Add((New-Finding -Severity "low" -Category "git-hook-present" -Path $Path -Match $hookName -Message "Git hook file is present." -Recommendation "Hooks can be legitimate, but unknown recruiter-provided repositories should be reviewed before git actions trigger them." -Snippet $snippet))
+        Add-ScanFinding -Findings $Findings -Finding (New-Finding -RemoteExecutionEvidence $risk.remoteExecutionEvidence -Severity "low" -Category "git-hook-present" -Path $Path -Match $hookName -Message "Git hook file is present." -Recommendation "Hooks can be legitimate, but unknown recruiter-provided repositories should be reviewed before git actions trigger them." -Snippet $snippet)
     }
 }
 
@@ -1495,7 +1512,7 @@ function Add-LockfileVersionFindings {
                     $window = $Text.Substring($windowStart, $windowEnd - $windowStart)
                     if ($window.IndexOf($versionText, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
                         $pos = Get-LineColumn -Text $Text -Index $currentNameIndex
-                        $Findings.Add((New-Finding -Severity "medium" -Category "lockfile-version-candidate" -Path $Path -Line $pos.line -Column $pos.column -Match "$name@$versionText" -Message "Lockfile contains a known affected package name near a known affected version string." -Recommendation "This is a candidate, not proof. Before installing, open the lockfile entry and confirm that this exact package resolves to this version. If unsure, stop and compare with the official advisory." -Snippet (Get-TextSnippet -Text $Text -Index $currentNameIndex -Length $name.Length)))
+                        Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity "medium" -Category "lockfile-version-candidate" -Path $Path -Line $pos.line -Column $pos.column -Match "$name@$versionText" -Message "Lockfile contains a known affected package name near a known affected version string." -Recommendation "This is a candidate, not proof. Before installing, open the lockfile entry and confirm that this exact package resolves to this version. If unsure, stop and compare with the official advisory." -Snippet (Get-TextSnippet -Text $Text -Index $currentNameIndex -Length $name.Length))
                         break
                     }
                     $searchFrom = $currentNameIndex + $name.Length
@@ -1531,9 +1548,7 @@ function Add-DownloadAndExecuteFindings {
                 [TimeSpan]::FromSeconds(1)
             )
         }
-        catch {
-            continue
-        }
+        catch { throw }
         if (-not $match.Success) {
             continue
         }
@@ -1544,7 +1559,7 @@ function Add-DownloadAndExecuteFindings {
             $severity = "info"
         }
         $pos = Get-LineColumn -Text $Text -Index $match.Index
-        $Findings.Add((New-Finding -Severity $severity -Category "download-and-execute" -Path $Path -Line $pos.line -Column $pos.column -Match ([string]$candidate.term) -Message "A classic download-and-execute or LOLBin command pattern was found." -Recommendation "Check whether this command runs automatically (install script, editor task, Git hook, CI workflow) before running the project." -Snippet (Get-TextSnippet -Text $Text -Index $match.Index -Length $match.Length)))
+        Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity $severity -Category "download-and-execute" -Path $Path -Line $pos.line -Column $pos.column -Match ([string]$candidate.term) -Message "A classic download-and-execute or LOLBin command pattern was found." -Recommendation "Check whether this command runs automatically (install script, editor task, Git hook, CI workflow) before running the project." -Snippet (Get-TextSnippet -Text $Text -Index $match.Index -Length $match.Length))
     }
 }
 
@@ -1553,11 +1568,13 @@ function Scan-SupplyChainFile {
         [System.Collections.Generic.List[object]]$Findings,
         $Rules,
         [System.IO.FileInfo]$File,
-        [string]$RootPath
+        [string]$RootPath,
+        [string]$TextContent
     )
 
-    $text = Read-TextFile -Path $File.FullName
+    $text = $TextContent
     Add-KnownIocFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Text $text
+    Add-CombinedIocFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Text $text
     Add-DownloadAndExecuteFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Text $text
     Add-VscodeTaskFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Text $text
     Add-ClaudeSettingsFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Text $text
@@ -1567,17 +1584,18 @@ function Scan-SupplyChainFile {
     Add-LockfileVersionFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Text $text
 
     if ($File.Name -eq "package.json") {
-        try {
-            $manifest = $text | ConvertFrom-Json
-            $packageName = [string](Get-JsonPropertyValue -Object $manifest -Name "name")
-            $packageVersion = [string](Get-JsonPropertyValue -Object $manifest -Name "version")
-            Add-PackageNameFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Name $packageName -Version $packageVersion
-            Add-DependencyFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Manifest $manifest
-            Add-InstallScriptFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Manifest $manifest
+        try { $manifest = $text | ConvertFrom-Json }
+        catch { throw "parse_failed" }
+        if ($null -eq $manifest -or $manifest -isnot [pscustomobject]) { throw "parse_failed" }
+        foreach ($field in @("scripts", "dependencies", "devDependencies", "optionalDependencies", "peerDependencies")) {
+            $value = Get-JsonPropertyValue -Object $manifest -Name $field
+            if ($null -ne $value -and $value -isnot [pscustomobject]) { throw "parse_failed" }
         }
-        catch {
-            $Findings.Add((New-Finding -Severity "low" -Category "package-json-parse-error" -Path $File.FullName -Match "package.json" -Message "package.json could not be parsed as JSON." -Recommendation "Review this file manually if it came from an unknown project."))
-        }
+        $packageName = [string](Get-JsonPropertyValue -Object $manifest -Name "name")
+        $packageVersion = [string](Get-JsonPropertyValue -Object $manifest -Name "version")
+        Add-PackageNameFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Name $packageName -Version $packageVersion
+        Add-DependencyFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Manifest $manifest
+        Add-InstallScriptFindings -Findings $Findings -Rules $Rules -Path $File.FullName -Manifest $manifest
     }
 }
 
@@ -1623,7 +1641,7 @@ function Add-CompoundProjectFindings {
         if ($hasManifestOrTask.Count -gt 0) {
             $severity = "critical"
         }
-        $Findings.Add((New-Finding -Severity $severity -Category "compound-autorun-download-execute" -Path $RootPath -Match "download-and-execute in auto-run location" -Message "A download-and-execute command pattern sits in a location that can run automatically (install script, editor task, Git hook, or root CI workflow)." -Recommendation "Do not open this project as trusted or run install until the flagged auto-run files are reviewed."))
+        Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity $severity -Category "compound-autorun-download-execute" -Path $RootPath -Match "download-and-execute in auto-run location" -Message "A download-and-execute command pattern sits in a location that can run automatically (install script, editor task, Git hook, or root CI workflow)." -Recommendation "Do not open this project as trusted or run install until the flagged auto-run files are reviewed.")
     }
 
     $folderOpenInstallTasks = @($Findings | Where-Object { $_.category -eq "editor-folder-open-install-task" })
@@ -1650,10 +1668,10 @@ function Add-CompoundProjectFindings {
     if ($dangerousInstallScripts.Count -gt 0) {
         $severity = "critical"
         $message = "An editor folder-open task can trigger install-time lifecycle scripts that already contain high-risk indicators."
-        $recommendation = "Treat this as a high-priority stop signal. Review in an isolated environment and rotate credentials if it was already run."
+        $recommendation = "Treat this as a high-priority stop signal. Do not run it again. Use the optional response guidance and consult support about the affected execution environment."
     }
 
-    $Findings.Add((New-Finding -Severity $severity -Category "compound-folderopen-install-lifecycle" -Path $RootPath -Match "folderOpen + npm install + lifecycle script" -Message $message -Recommendation $recommendation))
+    Add-ScanFinding -Findings $Findings -Finding (New-Finding -Severity $severity -Category "compound-folderopen-install-lifecycle" -Path $RootPath -Match "folderOpen + npm install + lifecycle script" -Message $message -Recommendation $recommendation)
 }
 
 function Test-BinaryLikeFile {
@@ -1691,14 +1709,89 @@ function Test-BinaryLikeFile {
         }
         return ($nulCount -gt 0 -or (($controlCount / [double]$read) -gt 0.30))
     }
-    catch {
-        return $false
-    }
+    catch { throw }
     finally {
         if ($null -ne $stream) {
             $stream.Dispose()
         }
     }
+}
+
+function New-ScanCoverage {
+    param([bool]$Invisible, [bool]$Supply)
+    $checks = @{}
+    foreach ($name in @("invisible", "supplyChain")) {
+        $checks[$name] = @{ enabled = $(if ($name -eq "invisible") { $Invisible } else { $Supply }); status = "not_assessed"; eligibleFiles = 0; attemptedFiles = 0; completedFiles = 0; failedFiles = 0; notAttemptedFiles = 0 }
+    }
+    return @{ status = "not_assessed"; enumerationComplete = $true; checks = $checks; counts = @{ observedFiles = 0; candidateFiles = 0; attemptedFiles = 0; completedFiles = 0; failedFiles = 0; notAttemptedFiles = 0 }; reasons = [Collections.Generic.List[object]]::new(); issues = [Collections.Generic.List[object]]::new(); issueTotal = 0; issueDetailsTruncated = $false }
+}
+
+function Add-CoverageCandidate {
+    param($Coverage, [string[]]$Checks)
+    $Coverage.counts.candidateFiles++
+    if ($Coverage.counts.candidateFiles -gt $MaxCandidateFiles) { throw "Too many candidate files. Narrow the target folder." }
+    foreach ($check in $Checks) { $Coverage.checks[$check].eligibleFiles++ }
+}
+
+function Add-CoverageReason {
+    param($Coverage, [string]$Code, [string]$Unit, [string]$Check, [bool]$AffectsCompleteness, [string]$Path = "")
+    $existing = @($Coverage.reasons | Where-Object { $_.code -eq $Code -and $_.check -eq $Check -and $_.unit -eq $Unit })
+    if ($existing.Count) { $existing[0].count++ }
+    else { $Coverage.reasons.Add(@{ code = $Code; unit = $Unit; check = $Check; count = 1; affectsCompleteness = $AffectsCompleteness }) }
+    if ($AffectsCompleteness) {
+        $Coverage.issueTotal++
+        if ($Coverage.issues.Count -lt 200) { $Coverage.issues.Add(@{ code = $Code; check = $Check; path = (ConvertTo-MaskedText -Text $Path) }) }
+        else { $Coverage.issueDetailsTruncated = $true }
+    }
+}
+
+function Complete-ScanCoverage {
+    param($Coverage)
+    foreach ($name in @("invisible", "supplyChain")) {
+        $check = $Coverage.checks[$name]
+        if (-not $check.enabled) { $check.status = "not_selected" }
+        elseif ($check.failedFiles -gt 0 -or $check.notAttemptedFiles -gt 0 -or @($Coverage.reasons | Where-Object { $_.affectsCompleteness -and $_.check -in @("all", $name) }).Count -gt 0) { $check.status = "partial" }
+        elseif ($check.completedFiles -eq 0) { $check.status = "not_assessed" }
+        else { $check.status = "complete" }
+        if ($check.eligibleFiles -ne $check.completedFiles + $check.failedFiles + $check.notAttemptedFiles -or $check.attemptedFiles -ne $check.completedFiles + $check.failedFiles) { throw "Coverage check counts are inconsistent." }
+    }
+    $counts = $Coverage.counts
+    if ($counts.candidateFiles -ne $counts.completedFiles + $counts.failedFiles + $counts.notAttemptedFiles -or $counts.attemptedFiles -ne $counts.completedFiles + $counts.failedFiles) { throw "Coverage file counts are inconsistent." }
+    if ($Coverage.issueTotal -gt 0) { $Coverage.status = "partial" }
+    elseif ($counts.completedFiles -eq 0) { $Coverage.status = "not_assessed" }
+    else { $Coverage.status = "complete" }
+}
+
+function Get-ResponseGuidance {
+    param([Collections.Generic.List[object]]$Findings)
+    $groups = [ordered]@{}
+    foreach ($finding in $Findings) {
+        if ($finding.pathContext -in @("documentation", "scanner-rule-file", "scanner-source", "scanner-selftest", "scanner-report", "nested-github-workflow")) { continue }
+        $context = ""
+        switch -Regex ($finding.category) {
+            '^install-script-(download-exec|danger-term)$' { $context = "install" }
+            '^npm-script-danger-term$' { if (-not (Test-InNodeModules $finding.path)) { $context = "manual_script" } }
+            '^editor-folder-open-' { $context = "editor_open" }
+            '^editor-shell-task-danger-term$' { $context = "manual_script" }
+            '^git-hook-(download-exec|danger-term)$' { $context = "git_hook" }
+            '^ai-agent-(hooks-danger-term|instruction-danger-term)$' { $context = "agent_action" }
+            '^github-workflow-(download-exec|danger-term)$' { $context = "ci" }
+            '^known-(ioc-string|ioc-combination|malicious-package-version)$' { if ($finding.severity -in @("critical", "high")) { $context = "package_or_code" } }
+        }
+        if (-not $context) { continue }
+        if ($context -eq "install" -and $finding.executionOperation -in @("prepack", "postpack")) { $context = "manual_script" }
+        if ($context -eq "install" -and (Test-InNodeModules $finding.path)) { continue }
+        if ($context -eq "manual_script" -and (Test-InNodeModules $finding.path)) { continue }
+        $finding.executionContext = $context
+        $finding.evidenceKind = $(if ($finding.category -eq "known-malicious-package-version") { "exact_affected_version" } elseif ($finding.category -eq "known-ioc-string") { "ioc_string" } elseif ($finding.category -eq "known-ioc-combination") { "ioc_combination" } else { "command_indicator" })
+        $key = $finding.path + "|" + $context + "|" + $finding.executionOperation
+        if (-not $groups.Contains($key)) {
+            $groups[$key] = @{ contextId = "context-" + ($groups.Count + 1); executionContext = $context; operation = (ConvertTo-MaskedText -Text $finding.executionOperation); path = (ConvertTo-MaskedText -Text $finding.path); findingIds = @(); strongEvidenceFindingIds = @(); executionState = "unanswered"; stateSource = "user"; executionLocation = "unknown"; credentialsPresent = "unanswered" }
+        }
+        $groups[$key].findingIds += $finding.findingId
+        if ($finding.remoteExecutionEvidence -and $context -in @("install", "manual_script") -and (Split-Path -Leaf $finding.path) -eq "package.json") { $groups[$key].strongEvidenceFindingIds += $finding.findingId }
+    }
+    return @{ policyVersion = 1; eligibleFindingIds = @($groups.Values | ForEach-Object { $_.findingIds }); responses = @($groups.Values) }
 }
 
 function Invoke-Scanner {
@@ -1769,7 +1862,7 @@ function Invoke-Scanner {
         $scanMode = [string]$Options.scanMode
     }
     if ($scanMode -notin @("invisible-unicode", "supply-chain-ioc", "full-safety-pre-scan")) {
-        $scanMode = "invisible-unicode"
+        throw "Invalid scan mode."
     }
     $runInvisibleScan = ($scanMode -in @("invisible-unicode", "full-safety-pre-scan"))
     $runSupplyChainScan = ($scanMode -in @("supply-chain-ioc", "full-safety-pre-scan"))
@@ -1792,7 +1885,14 @@ function Invoke-Scanner {
             [TimeSpan]::FromSeconds(2)
         )
     }
-    $supplyRules = Get-SupplyChainRules
+    $supplyRules = $null
+    if ($runSupplyChainScan) { $supplyRules = Get-SupplyChainRules }
+    $resolvedRoot = (Resolve-Path -LiteralPath $rootPath).Path
+    $rootItem = Get-Item -LiteralPath $resolvedRoot -Force
+    while ($null -ne $rootItem) {
+        if (($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "reparse_root" }
+        $rootItem = $rootItem.Parent
+    }
 
     $binaryExtensions = @(
         ".7z", ".apk", ".app", ".appimage", ".avi", ".bin", ".bmp", ".br", ".cab", ".class",
@@ -1812,8 +1912,10 @@ function Invoke-Scanner {
     $results = New-Object System.Collections.Generic.List[object]
     $errors = New-Object System.Collections.Generic.List[object]
     $candidateFiles = New-Object System.Collections.Generic.List[object]
+    $coverage = New-ScanCoverage -Invisible $runInvisibleScan -Supply $runSupplyChainScan
+    $coverage.policy = @{ scanMode = $scanMode; filters = $filters; excludeDirs = $excludeDirs; excludeFiles = $excludeFiles; maxFileSizeMb = $maxFileSizeMb; nodeModulesFullScan = $nodeModulesFullScan }
     $dirs = [System.Collections.Generic.Stack[string]]::new()
-    $dirs.Push((Resolve-Path -LiteralPath $rootPath).Path)
+    $dirs.Push($resolvedRoot)
 
     $scannedFiles = 0
     $skippedFiles = 0
@@ -1859,119 +1961,162 @@ function Invoke-Scanner {
             $children = Get-ChildItem -LiteralPath $dir -Force -ErrorAction Stop
         }
         catch {
-            if ($errors.Count -lt 200) {
-                $errors.Add(@{ path = $dir; message = $_.Exception.Message })
-            }
+            $coverage.enumerationComplete = $false
+            Add-CoverageReason $coverage "directory_read_failed" "directory" "all" $true $dir
             continue
         }
-
         foreach ($child in $children) {
             if ($child.PSIsContainer) {
-                if (($child.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
-                    continue
+                if (($child.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                    Add-CoverageReason $coverage "reparse_directory" "directory" "all" $false
                 }
-                if ($excludeDirs -contains $child.Name) {
-                    continue
+                elseif ($excludeDirs -contains $child.Name) {
+                    Add-CoverageReason $coverage "excluded_directory" "directory" "all" $false
                 }
-                $dirs.Push($child.FullName)
+                else { $dirs.Push($child.FullName) }
                 continue
             }
-
-            if ($binaryExtensions -contains $child.Extension.ToLowerInvariant()) {
+            $coverage.counts.observedFiles++
+            if (($child.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                Add-CoverageReason $coverage "reparse_file" "file" "all" $false
                 $skippedFiles++
+                continue
+            }
+            if ($binaryExtensions -contains $child.Extension.ToLowerInvariant()) {
+                Add-CoverageReason $coverage "unsupported_format" "file" "all" $false
+                $skippedFiles++
+                continue
+            }
+            $checks = @()
+            if ($runInvisibleScan) {
+                if (Test-NameMatchesAny -Name $child.Name -Patterns $excludeFiles) {
+                    Add-CoverageReason $coverage "excluded_file" "file" "invisible" $false
+                    $skippedFiles++
+                }
+                elseif (Test-NameMatchesAny -Name $child.Name -Patterns $filters) { $checks += "invisible" }
+                else { Add-CoverageReason $coverage "filter_mismatch" "file" "invisible" $false }
+            }
+            if ($runSupplyChainScan) {
+                try {
+                    if (Test-SupplyCandidateFile -File $child -RootPath $resolvedRoot -NodeModulesFullScan $nodeModulesFullScan -Rules $supplyRules) { $checks += "supplyChain" }
+                    else { Add-CoverageReason $coverage "supply_policy" "file" "supplyChain" $false }
+                }
+                catch { Add-CoverageReason $coverage "rule_evaluation_failed" "file" "supplyChain" $true $child.FullName }
+            }
+            if ($checks.Count -eq 0) {
+                if ($child.Length -gt $maxBytes) { $skippedFiles++ }
                 continue
             }
             if ($child.Length -gt $maxBytes) {
+                Add-CoverageCandidate $coverage $checks
+                $coverage.counts.notAttemptedFiles++
+                foreach ($check in $checks) { $coverage.checks[$check].notAttemptedFiles++ }
+                Add-CoverageReason $coverage "file_size_limit" "file" "all" $true $child.FullName
                 $skippedFiles++
                 continue
             }
-            if (($textLikeExtensions -notcontains $child.Extension.ToLowerInvariant()) -and (Test-BinaryLikeFile -File $child)) {
-                $skippedFiles++
-                continue
-            }
-
-            $isInvisibleCandidate = $false
-            if ($runInvisibleScan) {
-                if (Test-NameMatchesAny -Name $child.Name -Patterns $excludeFiles) {
+            try {
+                if (($textLikeExtensions -notcontains $child.Extension.ToLowerInvariant()) -and (Test-BinaryLikeFile -File $child)) {
+                    Add-CoverageReason $coverage "binary_content" "file" "all" $false
                     $skippedFiles++
-                }
-                elseif (Test-NameMatchesAny -Name $child.Name -Patterns $filters) {
-                    $isInvisibleCandidate = $true
+                    continue
                 }
             }
-            $isSupplyCandidate = $false
-            if ($runSupplyChainScan) {
-                $isSupplyCandidate = Test-SupplyCandidateFile -File $child -RootPath (Resolve-Path -LiteralPath $rootPath).Path -NodeModulesFullScan $nodeModulesFullScan -Rules $supplyRules
-            }
-            if (-not ($isInvisibleCandidate -or $isSupplyCandidate)) {
+            catch {
+                Add-CoverageCandidate $coverage $checks
+                $coverage.counts.notAttemptedFiles++
+                foreach ($check in $checks) { $coverage.checks[$check].notAttemptedFiles++ }
+                Add-CoverageReason $coverage "binary_probe_failed" "file" "all" $true $child.FullName
                 continue
             }
-
-            $candidateFiles.Add([pscustomobject]@{
-                file = $child
-                invisible = $isInvisibleCandidate
-                supply = $isSupplyCandidate
-            })
-            if ($candidateFiles.Count -gt $MaxCandidateFiles) {
-                throw ("Too many candidate files. Limit: {0}. Narrow the target to a downloaded project folder, or add exclusions such as node_modules;AppData;Windows;Program Files." -f $MaxCandidateFiles)
-            }
+            Add-CoverageCandidate $coverage $checks
+            $candidateFiles.Add(@{ file = $child; checks = $checks })
             if (($candidateFiles.Count % 500) -eq 0 -or ((Get-Date) - $progressState.lastSentAt).TotalSeconds -ge 2) {
                 Send-ScannerProgress -Phase "enumerate" -Percent 0 -CurrentPath $child.FullName
             }
         }
     }
-
     Send-ScannerProgress -Phase "scan" -Percent 0 -CurrentPath ""
     $totalCandidates = [Math]::Max(1, $candidateFiles.Count)
-
     foreach ($candidate in $candidateFiles) {
-            $child = $candidate.file
-            $scannedFiles++
+        $child = $candidate.file
+        $scannedFiles++
+        $beforeCount = $results.Count
+        if ($results.Count -ge $maxResults) {
+            $coverage.counts.notAttemptedFiles++
+            foreach ($check in $candidate.checks) { $coverage.checks[$check].notAttemptedFiles++ }
+            Add-CoverageReason $coverage "result_limit" "file" "all" $true $child.FullName
+            continue
+        }
+        $coverage.counts.attemptedFiles++
+        $readOk = $false
+        try {
+            $currentItem = Get-Item -LiteralPath $child.FullName -Force
+            if (($currentItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw "File became a reparse point." }
+            if ($currentItem.Length -gt $maxBytes) { throw "File exceeds size limit." }
+            $text = Read-TextFile -Path $child.FullName
+            $readOk = $true
+        }
+        catch { Add-CoverageReason $coverage "file_read_failed" "file" "all" $true $child.FullName }
+        $fileComplete = $readOk
+        foreach ($check in $candidate.checks) {
+            $counter = $coverage.checks[$check]
+            if (-not $readOk) { $counter.attemptedFiles++; $counter.failedFiles++; continue }
+            if ($results.Count -ge $maxResults) {
+                $counter.notAttemptedFiles++
+                $fileComplete = $false
+                Add-CoverageReason $coverage "result_limit" "file" $check $true $child.FullName
+                continue
+            }
+            $counter.attemptedFiles++
             try {
-                $text = Read-TextFile -Path $child.FullName
-                $beforeCount = $results.Count
-                if ($candidate.invisible) {
-                    $matches = $regex.Matches($text)
-                    foreach ($match in $matches) {
-                        if ($results.Count -ge $maxResults) {
-                            break
-                        }
+                if ($check -eq "invisible") {
+                    foreach ($match in $regex.Matches($text)) {
+                        if ($results.Count -ge $maxResults) { break }
                         $pos = Get-LineColumn -Text $text -Index $match.Index
                         $severity = "high"
-                        if (Test-DocumentationPath -Path $child.FullName) {
-                            $severity = "low"
-                        }
+                        if (Test-DocumentationPath -Path $child.FullName) { $severity = "low" }
                         $results.Add((New-Finding -Severity $severity -Category "invisible-unicode" -Path $child.FullName -Line $pos.line -Column $pos.column -Match "Invisible Unicode sequence" -Message "Invisible Unicode sequence matched the selected rule." -Recommendation "Confirm whether this file is executed or only documentation. Do not run unknown projects until executable hits are understood." -Snippet (ConvertTo-VisibleSnippet -Text $text -Index $match.Index -Length $match.Length) -Source "invisible-unicode" -RunLength (Get-CodePointCount -Text $match.Value) -CodePoints (Get-CodePointList -Text $match.Value)))
                     }
                 }
-                if ($candidate.supply -and $results.Count -lt $maxResults) {
-                    Scan-SupplyChainFile -Findings $results -Rules $supplyRules -File $child -RootPath (Resolve-Path -LiteralPath $rootPath).Path
-                }
-                if ($results.Count -gt $beforeCount) {
-                    $matchedFiles++
-                }
+                else { Scan-SupplyChainFile -Findings $results -Rules $supplyRules -File $child -RootPath $resolvedRoot -TextContent $text }
+                if ($results.Count -ge $maxResults) { throw "result_limit" }
+                $counter.completedFiles++
             }
             catch {
-                if ($errors.Count -lt 200) {
-                    $errors.Add(@{ path = $child.FullName; message = $_.Exception.Message })
-                }
+                $counter.failedFiles++
+                $fileComplete = $false
+                $code = "rule_evaluation_failed"
+                if ($_.Exception.Message -in @("parse_failed", "result_limit")) { $code = $_.Exception.Message }
+                elseif ($_.Exception -is [System.Text.RegularExpressions.RegexMatchTimeoutException] -or $_.Exception.InnerException -is [System.Text.RegularExpressions.RegexMatchTimeoutException]) { $code = "regex_timeout" }
+                Add-CoverageReason $coverage $code "file" $check $true $child.FullName
             }
-            if (($scannedFiles % 25) -eq 0 -or $scannedFiles -eq $candidateFiles.Count -or ((Get-Date) - $progressState.lastSentAt).TotalSeconds -ge 2) {
-                $percent = [int][Math]::Min(99, [Math]::Floor(($scannedFiles / $totalCandidates) * 100))
-                Send-ScannerProgress -Phase "scan" -Percent $percent -CurrentPath $child.FullName
-            }
+            if ($results.Count -gt $maxResults) { $results.RemoveRange($maxResults, $results.Count - $maxResults) }
         }
+        if ($fileComplete) { $coverage.counts.completedFiles++ } else { $coverage.counts.failedFiles++ }
+        if ($results.Count -gt $beforeCount) { $matchedFiles++ }
+        if (($scannedFiles % 25) -eq 0 -or $scannedFiles -eq $candidateFiles.Count -or ((Get-Date) - $progressState.lastSentAt).TotalSeconds -ge 2) {
+            Send-ScannerProgress -Phase "scan" -Percent ([int][Math]::Min(99, [Math]::Floor(($scannedFiles / $totalCandidates) * 100))) -CurrentPath $child.FullName
+        }
+    }
 
     $elapsed = ((Get-Date) - $started).TotalSeconds
     try {
         Add-CompoundProjectFindings -Findings $results -RootPath (Resolve-Path -LiteralPath $rootPath).Path
     }
-    catch {
-        if ($errors.Count -lt 200) {
-            $errors.Add(@{ path = (Resolve-Path -LiteralPath $rootPath).Path; message = ("Post-scan triage failed: " + (ConvertTo-MaskedText -Text $_.Exception.Message)) })
-        }
-        Write-Host ("Post-scan triage failed but scan results will still be returned: " + (ConvertTo-MaskedText -Text $_.Exception.Message))
+    catch { Add-CoverageReason $coverage "postprocess_failed" "event" "all" $true $resolvedRoot }
+    if ($results.Count -ge $maxResults) {
+        Add-CoverageReason $coverage "result_limit" "event" "all" $true
+        if ($results.Count -gt $maxResults) { $results.RemoveRange($maxResults, $results.Count - $maxResults) }
     }
+    Complete-ScanCoverage $coverage
+    foreach ($issue in $coverage.issues) { $errors.Add(@{ path = $issue.path; message = $issue.code }) }
+    $guidance = Get-ResponseGuidance -Findings $results
+    $stopFindings = @($results | Where-Object { $_.severity -in @("critical", "high") -and $_.pathContext -notin @("documentation", "scanner-rule-file", "scanner-source", "scanner-selftest", "scanner-report") })
+    $riskLevel = "unknown"
+    if ($stopFindings.Count -gt 0) { $riskLevel = "stop" }
+    elseif ($results.Count -gt 0) { $riskLevel = "review" }
+    elseif (@($coverage.checks.Values | Where-Object { $_.completedFiles -gt 0 }).Count -gt 0) { $riskLevel = "none_detected" }
     $severitySummary = Get-EmptySeveritySummary
     $signalSeveritySummary = Get-EmptySeveritySummary
     foreach ($result in $results) {
@@ -1980,17 +2125,23 @@ function Invoke-Scanner {
     }
     $finalResult = @{
         ok = $true
+        reportSchemaVersion = 2
+        scanId = [guid]::NewGuid().ToString("N")
+        coverage = $coverage
+        responseGuidance = $guidance
+        riskAssessment = @{ level = $riskLevel; findingIds = @($stopFindings | ForEach-Object { $_.findingId }) }
         tool = "Invisible Payload Scanner"
+        toolVersion = "0.6.0"
         scanMode = $scanMode
         scannedAt = (Get-Date).ToString("o")
         rule = $rule
-        supplyChainRules = @{
+        supplyChainRules = $(if ($runSupplyChainScan) { @{
             schemaVersion = $supplyRules.schemaVersion
             updatedAt = $supplyRules.updatedAt
             loadStatus = $supplyRules.loadStatus
             loadMessage = $supplyRules.loadMessage
             rulesets = @((ConvertTo-Array $supplyRules.rulesets) | ForEach-Object { $_.id })
-        }
+        } } else { @{ loadStatus = "not_selected"; schemaVersion = $null; updatedAt = $null; loadMessage = "Supply-chain check not selected."; rulesets = @() } })
         rootPath = (Resolve-Path -LiteralPath $rootPath).Path
         filters = $filters
         excludeDirs = $excludeDirs
@@ -2259,6 +2410,7 @@ function ConvertTo-SafeApiErrorMessage {
     if ([string]::IsNullOrWhiteSpace($text)) {
         return "Request failed."
     }
+    if ($text -in @("rules_missing", "rules_invalid", "reparse_root", "Invalid scan mode.")) { return $text }
     if ($text -like "Too many candidate files*") {
         return $text
     }
@@ -2625,16 +2777,19 @@ $prefix = "http://127.0.0.1:$Port/"
 $apiToken = New-ApiToken
 $allowedOrigins = @("http://127.0.0.1:$Port", "http://localhost:$Port")
 $allowedHosts = @("127.0.0.1:$Port", "localhost:$Port")
+$hashAlgorithm = [System.Security.Cryptography.SHA256]::Create()
+$hashStream = $null
+try {
+    $hashStream = [System.IO.File]::OpenRead($PSCommandPath)
+    $selfHash = [BitConverter]::ToString($hashAlgorithm.ComputeHash($hashStream)).Replace("-", "")
+}
+finally {
+    if ($null -ne $hashStream) { $hashStream.Dispose() }
+    $hashAlgorithm.Dispose()
+}
 $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Parse("127.0.0.1"), $Port)
 $listener.Start()
-
-try {
-    $selfHash = (Get-FileHash -LiteralPath $PSCommandPath -Algorithm SHA256).Hash
-    Write-Host "Script SHA-256: $selfHash"
-}
-catch {
-    Write-Host "Script SHA-256: (could not be computed)"
-}
+Write-Host "Script SHA-256: $selfHash"
 Write-Host "Invisible Payload Scanner is running at $prefix"
 Write-Host "Close this window or press Ctrl+C to stop."
 
