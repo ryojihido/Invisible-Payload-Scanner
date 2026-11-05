@@ -374,6 +374,16 @@
       .summary { grid-template-columns: 1fr 1fr; }
       table { font-size: 13px; }
     }
+    .coverage-card, .guidance-card { border: 1px solid #64748b; border-radius: 10px; padding: 16px; margin: 16px 0; }
+    .coverage-card.partial { border-left: 5px solid #f59e0b; }
+    .coverage-card p, .guidance-card p, .guidance-card li { line-height: 1.65; }
+    .guidance-card details { margin: 12px 0; }
+    .guidance-card select { display: block; width: 100%; margin: 8px 0 16px; }
+    .guidance-card summary, .coverage-card li, .guidance-card li { overflow-wrap: anywhere; }
+    .guidance-card li { margin-bottom: 12px; }
+    .technical-results { margin-top: 20px; }
+    summary { cursor: pointer; }
+    .verdict-card.neutral { border-color: #64748b; background: #f1f5f9; }
   </style>
 </head>
 <body>
@@ -383,7 +393,7 @@
         <h1>Invisible Payload Scanner</h1>
         <div class="subtitle" data-i18n="subtitle">不可視Unicode + npm / import時実行 / エディタ自動実行 / Git hook の実行前チェック</div>
       </div>
-      <span class="release-badge">v0.5.0 Evidence-First Supply Chain Scan</span>
+      <span class="release-badge" data-i18n="release.label">v0.6.0</span>
       <div class="language-switch" aria-label="Language">
         <button id="langJa" type="button" data-lang="ja">JA</button>
         <button id="langEn" type="button" data-lang="en">EN</button>
@@ -402,10 +412,11 @@
           <div class="hint" data-i18n="rootPath.hint3">このツールは指定フォルダ配下のファイルを読み取り検索します。検索対象ファイルは実行しません。</div>
         </div>
         <div class="span-12 notice" data-i18n="notice.default">通常はこのままスキャンできます。下の詳細設定は、対象ファイルを絞りたい時や誤検知を減らしたい時だけ変更してください。</div>
+        <details class="span-12 advanced-settings"><summary data-i18n="settings.details">詳細設定（通常は変更不要）</summary><div class="grid">
         <div class="field span-4">
           <label for="scanMode" data-i18n="scanMode.label">スキャン種別</label>
           <select id="scanMode">
-            <option value="full-safety-pre-scan" data-i18n="scanMode.full">両方まとめて確認（v0.5おすすめ）</option>
+            <option value="full-safety-pre-scan" data-i18n="scanMode.full">両方まとめて確認（おすすめ）</option>
             <option value="invisible-unicode" data-i18n="scanMode.invisible">不可視Unicodeだけ確認</option>
             <option value="supply-chain-ioc" data-i18n="scanMode.supply">npm / エディタ / AIエージェント設定だけ確認</option>
           </select>
@@ -431,7 +442,7 @@
         <div class="field span-4">
           <label for="minRun" data-i18n="minRun.label">連続検出しきい値</label>
           <input id="minRun" type="number" min="1" max="1000" value="8">
-          <div class="hint" data-i18n="minRun.hint">一次スクリーニングは8以上、広いPC全体スキャンなら16以上推奨です。</div>
+          <div class="hint" data-i18n="minRun.hint">通常は8のままで使えます。値を大きくすると短い並びを検出しなくなるため、結果を確認してから変更してください。</div>
         </div>
         <div class="field span-6">
           <label for="excludeDirs" data-i18n="excludeDirs.label">除外ディレクトリ名</label>
@@ -459,6 +470,7 @@
           <label for="customPattern" data-i18n="customPattern.label">カスタム正規表現</label>
           <textarea id="customPattern" spellcheck="false">([\uFE00-\uFE0F]|\uDB40[\uDD00-\uDDEF]){3,}</textarea>
         </div>
+      </div></details>
       </div>
       <div class="actions">
         <button id="scanButton" class="primary" type="button" data-i18n="buttons.scan">スキャン開始</button>
@@ -485,6 +497,9 @@
 
     <section id="resultSection" class="hidden">
       <div id="verdictCard" class="verdict-card hidden"></div>
+      <div id="coverageCard" class="coverage-card" aria-live="polite"></div>
+      <div id="guidanceCard" class="guidance-card"></div>
+      <details class="technical-results"><summary data-i18n="results.details">検出一覧を見る</summary>
       <div id="summary" class="summary"></div>
       <div id="limitAlert" class="alert" data-i18n="alerts.limit">結果が多いため、先頭5000件で表示を止めています。対象フォルダまたはフィルタを絞って再実行してください。</div>
       <div id="errorAlert" class="alert"></div>
@@ -511,6 +526,7 @@
           <tbody id="resultsBody"></tbody>
         </table>
       </div>
+      </details>
     </section>
   </main>
 
@@ -523,6 +539,9 @@
 
     const I18N = {
       ja: {
+        "release.label": "v0.6.0",
+        "settings.details": "詳細設定（通常は変更不要）",
+        "results.details": "検出一覧を見る",
         "subtitle": "不可視Unicode + npm / import時実行 / エディタ自動実行 / Git hook の実行前チェック",
         "rootPath.label": "スクリーニング対象フォルダ",
         "rootPath.hint1": "自動読み込みはしません。検知したいフォルダパスをここに入力してください。",
@@ -531,7 +550,7 @@
         "rootPath.hint3": "このツールは指定フォルダ配下のファイルを読み取り検索します。検索対象ファイルは実行しません。",
         "notice.default": "通常はこのままスキャンできます。下の詳細設定は、対象ファイルを絞りたい時や誤検知を減らしたい時だけ変更してください。",
         "scanMode.label": "スキャン種別",
-        "scanMode.full": "両方まとめて確認（v0.5おすすめ）",
+        "scanMode.full": "両方まとめて確認（おすすめ）",
         "scanMode.invisible": "不可視Unicodeだけ確認",
         "scanMode.supply": "npm / エディタ / AIエージェント設定だけ確認",
         "scanMode.hint": "Safety Pre-Scanは、不可視Unicodeに加えて確定IoC、import時実行、folderOpen、install script、Git hookも確認します。",
@@ -546,7 +565,7 @@
         "rule.custom": "カスタム正規表現",
         "rule.hint": "既定は不可視ペイロード本体の検出です。デコーダ兆候や別種の不可視文字は必要に応じて選びます。",
         "minRun.label": "連続検出しきい値",
-        "minRun.hint": "一次スクリーニングは8以上、広いPC全体スキャンなら16以上推奨です。",
+        "minRun.hint": "通常は8のままで使えます。値を大きくすると短い並びを検出しなくなるため、結果を確認してから変更してください。",
         "excludeDirs.label": "除外ディレクトリ名",
         "excludeDirs.hint": "`;` 区切り。速度優先なら `node_modules;dist;build` などを追加。",
         "excludeFiles.label": "除外ファイル名",
@@ -638,7 +657,7 @@
         "guide.agentInstruction": " AIエージェント向け指示ファイルは実行ファイルではありませんが、エージェントに自動作業させる前の確認対象です。",
         "guide.nestedWorkflow": " ネストしたGitHub Actions workflowの検出は、上流SDKや依存部品に同梱されたCI設定の可能性があります。ローカル実行の停止理由とは分け、CIを動かす時の確認材料として扱ってください。",
         "guide.signalSummary": " 表示上の重要度は対応優先度です。元の検出シグナルは Critical {critical} 件、High {high} 件です。",
-        "guide.critical": "危険レベルがあります。このプロジェクトは実行しないでください。簡易対策: 1. npm install / ビルドを止める 2. VS CodeやCursorはRestricted Modeで開くか、まだ開かない 3. AIエージェントに自動修正させない 4. 入手元と公式アドバイザリを確認 5. 既に実行済みならGitHub/npm/APIキー/SSH鍵などのローテーションを検討してください。Node.jsプロジェクトでは、追加防御としてpnpmのminimumReleaseAge、blockExoticSubdeps、allowBuildsも検討できます。",
+        "guide.critical": "危険レベルがあります。このプロジェクトは実行しないでください。簡易対策: 1. npm install / ビルドを止める 2. VS CodeやCursorはRestricted Modeで開くか、まだ開かない 3. AIエージェントに自動修正させない 4. 入手元と公式アドバイザリを確認 5. すでに実行した場合は「次にすること」で操作と場所を確認し、必要な対応を相談してください。",
         "guide.high": "高リスクがあります。簡易対策: 該当ファイルを開いて内容を確認し、意味が分からないコマンドやinstall scriptがある場合は実行しないでください。VS CodeやCursorはRestricted Mode、AIエージェントは自動実行なしで扱うのが安全です。Node.jsプロジェクトでは、pnpmのminimumReleaseAgeやinstall scriptの許可制も追加防御になります。",
         "guide.medium": "要注意があります。簡易対策: パッケージ名、バージョン、lockfile、tasks.json、package.json scriptsの該当箇所を確認してください。名前だけでは悪性と断定できません。不明な場合は依存関係を更新・インストールせず、一旦保留してください。",
         "guide.low": "検出があります。参考/低は注意喚起寄りです。簡易対策: 実行される場所にあるか、説明文やルールファイル内の記載かを確認してください。判断できない場合は実行前に詳しい人へ結果JSONを見せてください。",
@@ -655,6 +674,9 @@
         "progress.counts": "候補 {candidateFiles} 件 / 走査 {scannedFiles} 件 / 検出 {matchCount} 件"
       },
       en: {
+        "release.label": "v0.6.0",
+        "settings.details": "Advanced settings (usually unchanged)",
+        "results.details": "Show findings table",
         "subtitle": "Pre-run check for invisible Unicode, npm import-time payloads, editor auto-run, and Git hooks",
         "rootPath.label": "Folder to screen",
         "rootPath.hint1": "Nothing is loaded automatically. Paste the folder path you want to check.",
@@ -663,7 +685,7 @@
         "rootPath.hint3": "This tool reads and searches files under the selected folder. It does not execute target files.",
         "notice.default": "You can usually scan with the defaults. Change advanced settings only when you need to narrow the target or reduce noise.",
         "scanMode.label": "Scan type",
-        "scanMode.full": "Check both together (v0.5 recommended)",
+        "scanMode.full": "Check both together (recommended)",
         "scanMode.invisible": "Invisible Unicode only",
         "scanMode.supply": "npm / editor / AI-agent settings only",
         "scanMode.hint": "Safety Pre-Scan checks confirmed IOCs, import-time payloads, folderOpen tasks, install scripts, and Git hooks in addition to invisible Unicode.",
@@ -678,7 +700,7 @@
         "rule.custom": "Custom regular expression",
         "rule.hint": "The default detects invisible payload bodies. Choose decoder signals or other invisible characters when needed.",
         "minRun.label": "Run-length threshold",
-        "minRun.hint": "Use 8 or higher for first-pass screening. Use 16 or higher for broad PC-wide scans.",
+        "minRun.hint": "Normally, keep 8. A higher value stops detecting shorter sequences, so review results before changing it.",
         "excludeDirs.label": "Excluded directory names",
         "excludeDirs.hint": "Separate with `;`. Add entries such as `node_modules;dist;build` for speed.",
         "excludeFiles.label": "Excluded filenames",
@@ -770,7 +792,7 @@
         "guide.agentInstruction": " AI-agent instruction files are not executable by themselves, but they should be reviewed before automated agent work.",
         "guide.nestedWorkflow": " Nested GitHub Actions workflow findings may be CI configuration bundled with upstream SDKs or dependencies. Treat them as CI review material, not necessarily a reason to stop local execution.",
         "guide.signalSummary": " Displayed severity is response priority. The original detection signals include Critical {critical} and High {high}.",
-        "guide.critical": "Critical findings are present. Do not run this project. Quick steps: 1. Stop npm install / builds 2. Open VS Code or Cursor only in Restricted Mode, or do not open it yet 3. Do not let AI agents auto-modify it 4. Confirm the source and official advisories 5. If already run in a credentialed environment, consider rotating GitHub/npm/API keys and SSH keys. For Node.js projects, also consider pnpm minimumReleaseAge, blockExoticSubdeps, and allowBuilds.",
+        "guide.critical": "Critical findings are present. Do not run this project. Quick steps: 1. Stop npm install / builds 2. Open VS Code or Cursor only in Restricted Mode, or do not open it yet 3. Do not let AI agents auto-modify it 4. Confirm the source and official advisories 5. If already run, use What to do next to identify the operation and environment and discuss the relevant response with support.",
         "guide.high": "High-priority findings are present. Open the listed files and review them. If a command or install script is unclear, do not run it. Use Restricted Mode for VS Code/Cursor and avoid AI-agent auto-run. For Node.js projects, pnpm minimumReleaseAge and install-script allowlists can add defense.",
         "guide.medium": "Review-priority findings are present. Check package names, versions, lockfiles, tasks.json, and package.json scripts. A name match alone is not proof of compromise. If unsure, pause before updating or installing dependencies.",
         "guide.low": "Findings are present. Low/info findings are review prompts. Check whether the file is executable, documentation, or a rule file. If unsure, show the JSON result to someone technical before running the project.",
@@ -813,6 +835,170 @@
       }
     }
 
+    const UX = {
+      ja: {
+        scope: "調べられた範囲", complete: "選んだ検査範囲の処理は完了しました", partial: "調べられなかった部分があります", not_assessed: "対象に合うファイルがなく、検査できませんでした", unknown: "検査がどこまで完了したか確認できません",
+        limited: "選んだ種類・設定で調べた結果です。感染の有無やPC全体の安全を保証するものではありません。画像・実行ファイル・圧縮ファイルの中身などは対象外です。",
+        scopeDetails: "範囲と内訳を見る", counts: "検査を試したファイル：{a} ／ 予定した検査を終えたファイル：{c}", issueTotal: "未完了の理由：{n}件（同じファイルに複数の理由がある場合があります）",
+        excluded_directory: "設定により調べないフォルダー（中の件数は未確認）", reparse_directory: "リンク先を追わないフォルダー（中の件数は未確認）", reparse_file: "リンク先を追わないファイル", unsupported_format: "対象外の形式", binary_content: "テキスト以外の内容", excluded_file: "設定による対象外", filter_mismatch: "選んだファイル形式の対象外", supply_policy: "供給網検査の対象外（依存ファイルの限定検査を含む）", file_size_limit: "大きさの上限で未検査", binary_probe_failed: "形式確認のための読取り失敗", file_read_failed: "ファイルを読めなかった", directory_read_failed: "フォルダーを読めなかった（中の件数は不明）", parse_failed: "設定ファイルの構造を読み取れなかった", rule_evaluation_failed: "検査処理の失敗", regex_timeout: "検査に時間がかかりすぎた", result_limit: "検出上限による打切り", postprocess_failed: "検出結果のまとめ処理が未完了",
+        scopeHelp: "内訳の場所と設定を確認してください。アクセス権が分からない場合は管理担当者に相談してください。管理者として起動したり、除外をすべて解除したりする必要はありません。",
+        noResult: "検査結果を確定できません", zeroPartial: "確認できた範囲での検出は0件です", zeroComplete: "調べた範囲では、検出条件に当たるものは見つかりませんでした", riskLabel: "見つかったもの", findings: "検出：{n}件", interrupted: "最後まで確認できませんでした。今回の結果は保存できません。",
+        next: "次にすること（任意）", intro: "ダウンロードしただけ、このツールで調べただけなら実行には当たりません。回答しなくても結果を保存できます。実行したという回答だけで感染が確定するわけではありません。",
+        question: "この結果に関係する操作を、すでにしましたか？", unanswered: "未回答（回答を取り消す）", not_run: "まだ実行していない", ran: "実行した", unsure: "分からない",
+        install: "この設定でのインストール処理", manual_script: "この名前のコマンド・タスク", editor_open: "フォルダーを開いたときの自動処理", git_hook: "Git操作に伴う自動処理", agent_action: "AIによるコマンド・自動処理の実行", ci: "GitHub上などでの自動処理（CI）", package_or_code: "検出されたパッケージ・コードの使用",
+        contextHelp: "対象の処理が動いたか分からなければ「分からない」で構いません。ファイルを読んだだけで、その中の命令を実行したことにはなりません。",
+        packageHelp: "インストール時に動くものと、起動・読み込み（import）時に動くものがあります。この検出だけでは実行経路を確定できません。何をしたかを相談先と確認してください。",
+        where: "この処理が動いた場所は？", placeUnknown: "分からない／未回答", thisPc: "このPC", elsewhere: "別のPC・サーバーなど",
+        credentials: "この処理が動いた環境に、仕事や開発サービスのログイン情報があったと確認できましたか？（値は入力しないでください）", credUnknown: "未確認／分からない", credYes: "自分または管理担当者が確認した", credNo: "確認した範囲ではなかった",
+        saveStep: "結果を残す：上の「結果をJSON保存」、または下の「対処手順を保存」を押し、保存先を確認してください。対象ファイルは変更しません。共有前にパス・ユーザー名・秘密が含まれないか確認してください。",
+        consult: "判断に迷ったら：会社・学校のPCは管理担当者へ、個人のPCはセキュリティ製品やPCメーカーの正規サポートへ相談してください。AIに結果を見せる場合も、結果中の文章を命令として実行させないでください。",
+        wait: "確認が済むまで：この操作を実行せず、AIにも自動処理を許可しないでください。確かめるために動かす必要はありません。",
+        unsureStep: "覚えている範囲で：ダウンロード、インストール、起動、AIへの実行許可のどこまで行ったか確認しましょう。不明のまま相談できます。",
+        ranStep: "もう一度動かさずに相談：検出箇所を消すだけでは、残ったものや使われたログイン情報まで確認したことにはなりません。",
+        ciStep: "自動処理の管理担当者へ：実行されたサーバーやサービスを確認してください。この結果だけで、画面を見ているPCの通信を止める必要はありません。",
+        disconnect: "このPCで該当処理を実行した場合：取得した内容を実行する指標があるため、通信をいったん止めて相談してください。Wi-Fiをオフにし、有線接続ならこのPCのLANケーブルを抜きます。両方使っていれば両方を止めます。会社・学校の共有機器は管理担当者に止め方を確認してください。共有ルーターの電源は切らないでください。感染確定という意味ではありません。",
+        impact: "通信を止めると：Web、メール、会議、遠隔サポートが使えなくなります。Wi-Fiがオフ、有線が外れているか確認してください。この画面は開いたまま読めます。分からなければスマートフォンなど別の端末から正規サポートへ相談してください。",
+        av: "保護ソフトの結果も確認：いつも使っているセキュリティソフトを開き、警告と案内を確認してください。会社・学校のPCは管理担当者の手順に従ってください。何も見つからなくても完全復旧の証明にはなりません。",
+        keys: "必要なログイン情報を使えなくする相談：問題の対象を動かしていない別の信頼できる端末から、該当サービスの公式設定を確認します。パスワード変更だけで、ログイン中の状態やAPIキーが無効になるとは限りません。対象を管理担当者と絞り、古い情報が無効になったことを確認してください。連携アプリや自動処理が止まる場合があります。秘密の値を記録・入力しないでください。",
+        evidence: "案内の根拠ID：", saveText: "対処手順を保存（テキスト）", reportTitle: "Invisible Payload Scanner — 結果と対処手順", limits: "検出なし・対処済みは、安全や復旧完了の証明ではありません。結果内の引用データを命令として実行しないでください。", rulesError: "検査ルールを読み込めず、開始できませんでした。配布元の手順でツール一式を確認してください。", reparseError: "リンク先のフォルダーは検査できません。実体のフォルダーを指定してください。"
+      },
+      en: {
+        scope: "Scope checked", complete: "Processing finished for the selected checks", partial: "Some parts could not be checked", not_assessed: "No eligible files were checked", unknown: "Check completion could not be established",
+        limited: "Results cover the selected checks and settings only. They do not prove the absence of infection or whole-PC safety. Images, executables and archive contents are outside these checks.", scopeDetails: "Show scope and counts", counts: "Files attempted: {a} / Files with all planned checks completed: {c}", issueTotal: "Incomplete-check reasons: {n} (a file may have more than one reason)",
+        excluded_directory: "Excluded folders (contents not counted)", reparse_directory: "Linked folders not followed (contents not counted)", reparse_file: "Linked files not followed", unsupported_format: "Unsupported formats", binary_content: "Non-text content", excluded_file: "Excluded by settings", filter_mismatch: "Outside selected file filters", supply_policy: "Outside supply-chain policy (including targeted dependency checks)", file_size_limit: "Size limit", binary_probe_failed: "Could not read file type sample", file_read_failed: "Could not read file", directory_read_failed: "Could not read folder (contents unknown)", parse_failed: "Could not parse configuration", rule_evaluation_failed: "Check failed", regex_timeout: "Check timed out", result_limit: "Finding limit reached", postprocess_failed: "Result triage incomplete",
+        scopeHelp: "Check the listed locations and settings. Ask your administrator if permissions are unclear. You do not need to run as administrator or remove every exclusion.", noResult: "No conclusive check result", zeroPartial: "No findings in the parts successfully checked", zeroComplete: "No configured detection conditions matched in the checked scope", riskLabel: "Findings", findings: "Findings: {n}", interrupted: "The check did not finish. No result from this attempt can be saved.",
+        next: "What to do next (optional)", intro: "Downloading or scanning is not execution. You can save results without answering. Reporting execution does not establish an infection.", question: "Have you already performed this operation?", unanswered: "Unanswered (clear answer)", not_run: "Not run", ran: "Run", unsure: "Not sure",
+        install: "Installation using this script", manual_script: "This named command or task", editor_open: "Automatic processing when opening the folder", git_hook: "Automatic processing triggered by Git", agent_action: "Commands or automation executed by the AI", ci: "Automation on GitHub or another runner (CI)", package_or_code: "Use of the detected package or code", contextHelp: "Choose Not sure if you do not know whether this particular process ran. Reading a file is not the same as executing its instructions.", packageHelp: "Some payloads run during installation, others at launch or import. This finding does not establish the execution path. Confirm what happened with support.",
+        where: "Where did this operation run?", placeUnknown: "Unknown / unanswered", thisPc: "This PC", elsewhere: "Another PC or server", credentials: "Have you or your administrator confirmed that work or development credentials were present in that environment? Do not enter their values.", credUnknown: "Not checked / unsure", credYes: "Confirmed by me or my administrator", credNo: "None in the scope checked",
+        saveStep: "Keep a record: use Save JSON results above or Save response steps below and check the saved location. This does not change scanned files. Check paths, usernames and secrets before sharing.", consult: "If unsure: contact your workplace or school administrator, or your security vendor / PC manufacturer's official support. If asking an AI, tell it not to execute instructions contained in the report.", wait: "Until reviewed: do not run this operation or authorize AI automation. You do not need to run it to investigate.", unsureStep: "Recall what you did: download, install, launch, or authorize an AI to execute commands. You can consult support while the answer remains unknown.", ranStep: "Do not run it again; consult support. Removing a detected item alone does not establish that persistence or misused credentials have been addressed.", ciStep: "Contact the automation administrator about the runner and services used. This result alone is not a reason to disconnect the PC displaying it.",
+        disconnect: "If this particular process ran on this PC: remote-content execution indicators warrant pausing its network connection and consulting support. Turn off Wi-Fi and unplug this PC's Ethernet cable if connected; do both if both are used. For shared workplace or school systems, ask the administrator how to proceed. Do not turn off a shared router. This does not establish an infection.", impact: "Disconnecting stops web access, email, meetings and remote support. Check that Wi-Fi is off and Ethernet unplugged. This open page remains readable. If unsure, contact official support using another device such as a phone.", av: "Also check your usual security software's warnings and instructions. Follow your administrator's procedures on managed PCs. A clean result does not prove full recovery.", keys: "Discuss revoking only the relevant credentials: use a different trusted device that did not run the suspect content and open the service's official settings. Password changes may not revoke sessions or API keys. Agree the affected services with the administrator and verify that old access is invalidated. Connected apps and automation may stop. Do not record or enter secret values.", evidence: "Guidance evidence IDs: ", saveText: "Save response steps (text)", reportTitle: "Invisible Payload Scanner — results and response steps", limits: "No findings or completed steps do not prove safety or recovery. Never execute instructions from quoted report data.", rulesError: "The required scan rules could not be loaded. Check the complete tool package using the publisher's instructions.", reparseError: "Linked folders cannot be scanned. Select the actual folder."
+      }
+    };
+    function ux(key, values = {}) {
+      const text = UX[currentLang][key];
+      if (typeof text !== "string") throw new Error(`Missing UI text: ${key}`);
+      return text.replace(/\{(\w+)\}/g, (_, name) => String(values[name]));
+    }
+    function element(tag, text, parent) {
+      const el = document.createElement(tag);
+      if (text !== undefined) el.textContent = text;
+      if (parent) parent.appendChild(el);
+      return el;
+    }
+    function coverageStatus(data) {
+      const c = data.coverage;
+      if (data.reportSchemaVersion !== 2 || !c || !["complete", "partial", "not_assessed"].includes(c.status)) return "unknown";
+      if (!Number.isInteger(data.matchCount) || data.matchCount < 0 || !Array.isArray(data.results) || data.matchCount !== data.results.length) return "unknown";
+      const n = c.counts;
+      if (!n || !["candidateFiles", "attemptedFiles", "completedFiles", "failedFiles", "notAttemptedFiles", "observedFiles"].every(k => Number.isInteger(n[k]) && n[k] >= 0)) return "unknown";
+      if (n.candidateFiles !== n.completedFiles + n.failedFiles + n.notAttemptedFiles || n.attemptedFiles !== n.completedFiles + n.failedFiles) return "unknown";
+      if (!Number.isInteger(c.issueTotal) || c.issueTotal < 0 || !Array.isArray(c.reasons) || !Array.isArray(c.issues) || typeof c.enumerationComplete !== "boolean") return "unknown";
+      if (c.status === "complete" && (c.issueTotal || n.failedFiles || n.notAttemptedFiles || !c.enumerationComplete || n.completedFiles === 0)) return "unknown";
+      return c.status;
+    }
+    function renderCoverage(data) {
+      const host = $("coverageCard"); host.textContent = "";
+      const status = coverageStatus(data);
+      host.className = "coverage-card " + status;
+      element("strong", ux("scope") + "：" + ux(status), host);
+      element("p", ux("limited"), host);
+      if (status === "unknown") return;
+      if (status === "partial") element("p", ux("scopeHelp"), host);
+      const details = element("details", undefined, host);
+      element("summary", ux("scopeDetails"), details);
+      const c = data.coverage;
+      element("p", ux("counts", {a: c.counts.attemptedFiles, c: c.counts.completedFiles}), details);
+      element("p", ux("issueTotal", {n: c.issueTotal}), details);
+      const list = element("ul", undefined, details);
+      for (const reason of c.reasons) {
+        const label = Object.hasOwn(UX[currentLang], reason.code) ? ux(reason.code) : reason.code;
+        element("li", `${label}：${reason.count}`, list);
+      }
+      const paths = element("ul", undefined, details);
+      for (const issue of c.issues) element("li", `${Object.hasOwn(UX[currentLang], issue.code) ? ux(issue.code) : issue.code} — ${issue.path}`, paths);
+    }
+    function responseSteps(response) {
+      const steps = ["saveStep"];
+      if (response.executionState === "not_run") steps.push("wait");
+      if (response.executionState === "unsure") steps.push("unsureStep");
+      if (response.executionState === "ran") {
+        steps.push("ranStep");
+        if (response.executionContext === "ci" || response.executionLocation === "other_environment") steps.push("ciStep");
+        else if (response.strongEvidenceFindingIds.length && response.executionLocation === "this_pc") {
+          steps.push("disconnect", "impact", "av");
+          if (response.credentialsPresent === "yes") steps.push("keys");
+        }
+      }
+      steps.push("consult");
+      return steps;
+    }
+    function addChoice(parent, labelText, id, options, value, onChange) {
+      const label = element("label", labelText, parent); label.htmlFor = id;
+      const select = element("select", undefined, parent); select.id = id;
+      for (const [v, key] of options) { const option = element("option", ux(key), select); option.value = v; }
+      select.value = value;
+      select.addEventListener("change", () => onChange(select.value));
+      return select;
+    }
+    function renderGuidance(data) {
+      const host = $("guidanceCard"); host.textContent = "";
+      const guidance = data.responseGuidance;
+      if (!guidance || guidance.policyVersion !== 1) return;
+      const panel = element("details", undefined, host);
+      element("summary", ux("next"), panel);
+      element("p", ux("saveStep"), panel);
+      if (guidance.responses.length) element("p", ux("intro"), panel);
+      for (const response of guidance.responses) {
+        const section = element("details", undefined, panel);
+        const heading = element("summary", `${ux(response.executionContext)} — ${response.path}`, section);
+        if (response.operation) element("p", response.operation, section);
+        element("p", ux(response.executionContext === "package_or_code" ? "packageHelp" : "contextHelp"), section);
+        const state = addChoice(section, ux("question"), response.contextId + "-state", [["unanswered","unanswered"],["not_run","not_run"],["ran","ran"],["unsure","unsure"]], response.executionState, value => {
+          response.executionState = value; response.executionLocation = "unknown"; response.credentialsPresent = "unanswered";
+          place.value = "unknown"; credentials.value = "unanswered"; update();
+        });
+        const whereWrap = element("div", undefined, section);
+        const place = addChoice(whereWrap, ux("where"), response.contextId + "-place", [["unknown","placeUnknown"],["this_pc","thisPc"],["other_environment","elsewhere"]], response.executionLocation, value => {
+          response.executionLocation = value; response.credentialsPresent = "unanswered"; credentials.value = "unanswered"; update();
+        });
+        const credWrap = element("div", undefined, section);
+        const credentials = addChoice(credWrap, ux("credentials"), response.contextId + "-credentials", [["unanswered","credUnknown"],["yes","credYes"],["no","credNo"]], response.credentialsPresent, value => { response.credentialsPresent = value; update(); });
+        const steps = element("ol", undefined, section);
+        function update() {
+          whereWrap.hidden = response.executionState !== "ran" || response.executionContext === "ci" || !response.strongEvidenceFindingIds.length;
+          credWrap.hidden = whereWrap.hidden || response.executionLocation !== "this_pc";
+          steps.textContent = "";
+          for (const step of responseSteps(response)) element("li", ux(step), steps);
+          heading.textContent = `${ux(response.executionContext)} — ${response.path} (${ux(response.executionState)})`;
+        }
+        update();
+        element("p", ux("evidence") + response.findingIds.join(", "), section).className = "hint mono";
+      }
+      if (!guidance.responses.length) element("p", ux("consult"), panel);
+      const button = element("button", ux("saveText"), panel); button.type = "button";
+      button.addEventListener("click", () => saveTextReport(data));
+    }
+    function responseText(data) {
+      const lines = [ux("reportTitle"), data.scannedAt, `Scan ID: ${data.scanId}`, getVerdict(data).title, ux("scope") + ": " + ux(coverageStatus(data)), ux("limited"), ux("limits")];
+      if (coverageStatus(data) !== "unknown") {
+        lines.push(ux("counts", {a:data.coverage.counts.attemptedFiles, c:data.coverage.counts.completedFiles}));
+        for (const reason of data.coverage.reasons) lines.push(`${Object.hasOwn(UX[currentLang], reason.code) ? ux(reason.code) : reason.code}: ${reason.count} (${reason.check})`);
+      }
+      lines.push(ux("saveStep"), ux("consult"));
+      for (const r of data.responseGuidance.responses) {
+        lines.push("", `${ux(r.executionContext)}: ${r.path}`, `${ux(r.executionState)} (${r.stateSource})`, ux("evidence") + r.findingIds.join(", "));
+        if (r.operation) lines.push(r.operation);
+        lines.push(ux("where") + " " + ux({unknown:"placeUnknown",this_pc:"thisPc",other_environment:"elsewhere"}[r.executionLocation]));
+        lines.push(ux("credentials") + " " + ux({unanswered:"credUnknown",yes:"credYes",no:"credNo"}[r.credentialsPresent]));
+        for (const step of responseSteps(r)) lines.push(ux(step));
+      }
+      return lines.join("\r\n");
+    }
+    function saveTextReport(data) {
+      const url = URL.createObjectURL(new Blob(["\ufeff" + responseText(data)], {type:"text/plain;charset=utf-8"}));
+      const a = document.createElement("a"); a.href = url; a.download = `invisible-payload-response-${data.scanId}.txt`; a.click(); URL.revokeObjectURL(url);
+    }
+
     const savedLanguage = localStorage.getItem("ipsLanguage");
     currentLang = savedLanguage || ((navigator.language || "").toLowerCase().startsWith("en") ? "en" : "ja");
     $("langJa").addEventListener("click", () => setLanguage("ja"));
@@ -845,6 +1031,7 @@
         return;
       }
 
+      lastResult = null;
       $("scanButton").disabled = true;
       $("exportButton").disabled = true;
       $("stopButton").disabled = true;
@@ -869,11 +1056,13 @@
         renderResult(data);
         $("exportButton").disabled = false;
         showProgress({ phase: "done", percent: 100, currentPath: "", scannedFiles: data.scannedFiles, candidateFiles: data.candidateFiles, matchCount: data.matchCount });
-        $("status").textContent = data.matchCount > 0 ? t("status.hasFindings") : t("status.noFindings");
+        $("status").textContent = ux("scope") + "：" + ux(coverageStatus(data));
       } catch (error) {
+        lastResult = null;
+        $("resultSection").classList.add("hidden");
         if (error.name === "AbortError") {
           showProgress({ phase: "error", percent: 100, currentPath: t("status.scanCancelled"), scannedFiles: 0, candidateFiles: 0, matchCount: 0 });
-          $("status").textContent = t("status.scanCancelled");
+          $("status").textContent = ux("interrupted");
         } else {
           const message = friendlyErrorMessage(error.message);
           showProgress({ phase: "error", percent: 100, currentPath: message, scannedFiles: 0, candidateFiles: 0, matchCount: 0 });
@@ -920,6 +1109,8 @@
       $("errorAlert").style.display = data.errors.length ? "block" : "none";
       $("errorAlert").textContent = data.errors.length ? t("alerts.readErrors", { count: data.errors.length }) : "";
       renderVerdictCard(data);
+      renderCoverage(data);
+      renderGuidance(data);
       if (data.supplyChainRules && data.supplyChainRules.loadStatus === "fallback") {
         $("errorAlert").style.display = "block";
         $("errorAlert").textContent = ($("errorAlert").textContent ? $("errorAlert").textContent + " " : "") + t("alerts.ruleFallback");
@@ -927,7 +1118,7 @@
 
       const verdict = data.matchCount > 0
         ? `<span class="danger">${t("verdict.detected")}</span>`
-        : `<span class="ok">${t("verdict.clean")}</span>`;
+        : `<span>${ux("findings", {n: 0})}</span>`;
       const summary = data.summary || {};
       const signalSummary = data.signalSummary || {};
       const summaryCards = [
@@ -1044,6 +1235,12 @@
     }
 
     function getTriageNoteText(row) {
+      if (currentLang === "ja" && row.category === "dependency-development-script") {
+        return "依存ライブラリの開発・配布用設定です。存在だけでは通常利用時の実行を意味しません。Git・ローカル・リンク経由の導入などでは動く場合があるため、自分でこれらの処理を実行するときは確認してください。";
+      }
+      if (currentLang === "ja" && row.category === "dependency-local-test-script") {
+        return "依存ライブラリのテストで、自分のPC内のURL以外に強い危険指標がないため参考情報にしました。外部URL、取得・実行、難読化、認証情報の指標は引き続き警告します。ローカルURL自体を安全保証とは扱いません。";
+      }
       if ((row.pathContext || "") === "nested-github-workflow" && row.triageNote) {
         return t("triage.nestedWorkflow");
       }
@@ -1095,15 +1292,24 @@
     }
 
     function getVerdict(data) {
+      const scope = coverageStatus(data);
       if (!data.matchCount) {
         return {
-          level: "green",
-          title: t("verdictCard.green.title"),
+          level: "neutral",
+          title: scope === "complete" ? ux("zeroComplete") : scope === "partial" && data.riskAssessment?.level !== "unknown" ? ux("zeroPartial") : ux("noResult"),
           steps: [],
           note: t("verdictCard.green.note")
         };
       }
       const rows = data.results || [];
+      if (rows.length && rows.every(row => row.severity === "info" && ["dependency-development-script", "dependency-local-test-script"].includes(row.category))) {
+        return {
+          level: "neutral",
+          title: currentLang === "en" ? "Dependency development settings found (for reference)" : "依存ライブラリの開発用設定が見つかりました（参考情報）",
+          steps: [currentLang === "en" ? "These findings alone do not call for stopping use. Review the details before deliberately running these dependency scripts." : "この検出だけを理由に利用を止める必要はありません。依存ライブラリのこれらの処理を自分で動かす場合は、詳細を確認してください。"],
+          note: ux("limited")
+        };
+      }
       const redRows = rows.filter((row) => {
         const severity = (row.severity || "info").toLowerCase();
         return (severity === "critical" || severity === "high") && !isFalsePositiveLeaning(row);
@@ -1181,9 +1387,7 @@
     }
 
     function getResultGuide(data) {
-      if (!data.matchCount) {
-        return t("guide.noFindings");
-      }
+      if (!data.matchCount) { return ux("limited"); }
       const summary = data.summary || {};
       const signalSummary = data.signalSummary || {};
       const hasEditorExtensionHits = (data.results || []).some((row) => row.pathContext === "editor-extension");
@@ -1239,6 +1443,8 @@
 
     function friendlyErrorMessage(message) {
       const text = message || "";
+      if (text === "rules_missing" || text === "rules_invalid") return ux("rulesError");
+      if (text === "reparse_root") return ux("reparseError");
       if (/Too many candidate files/i.test(text)) {
         return t("friendly.tooManyCandidates");
       }
@@ -1296,7 +1502,7 @@
         scannedFiles: event.scannedFiles || 0,
         matchCount: event.matchCount || 0
       });
-      $("progressDetail").textContent = event.currentPath ? `${counts} / ${event.currentPath}` : counts;
+      $("progressDetail").textContent = event.phase === "error" ? ux("interrupted") : event.currentPath ? `${counts} / ${event.currentPath}` : counts;
     }
 
     function metric(label, value, level = "") {

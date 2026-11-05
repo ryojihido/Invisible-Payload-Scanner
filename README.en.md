@@ -1,66 +1,72 @@
 # Invisible Payload Scanner
 
-**A local Windows tool that checks an AI-generated or downloaded project for hidden, dangerous entry points — before you run it.**
+**A Windows tool for checking AI-generated or downloaded projects before you run them.**
 
-It sends nothing to the internet; everything runs on your own PC. No command line needed: download, unzip, and double-click a `.cmd` to check from a browser screen.
+Paste a folder path and press Scan. Files are read, never executed or uploaded. No programming knowledge or additional package installation is needed.
 
-![Invisible Payload Scanner: v0.5.0 launch screen](docs/preview.png)
+This package is **v0.6.0**, adding scan coverage, optional response guidance, reduced dependency-script noise, and checks for the October 2026 TensorLake and Cursor extension incidents. [Changes](docs/release-notes-v0.6.0.md) / [Published downloads](https://github.com/ryojihido/Invisible-Payload-Scanner/releases)
 
-Japanese version: [README.md](README.md). See [SECURITY.md](SECURITY.md) (Japanese: [SECURITY.ja.md](SECURITY.ja.md)) for the security policy and reporting scope.
+Japanese: [README.md](README.md) / Security design and limitations: [SECURITY.md](SECURITY.md)
 
----
+![v0.6.0 start screen](docs/preview-v0.6.0-start.png)
 
-## What is it?
+## Get started in 3 steps
 
-- Before you hand a project to an AI agent (Claude / Cursor, etc.) or run `npm install`, **scan the folder once**.
-- It answers with a **3-color verdict** — 🔴 **stop** / 🟡 **check first** / 🟢 **no dangerous entry points found**.
-- **100% local.** Nothing is uploaded. Files are **only read**, never executed.
-- Open source (MIT). You — or your AI — can read exactly what it does.
+1. **Download and extract the scanner.**
 
-## Why does it matter?
+   Choose a published zip from [Releases](https://github.com/ryojihido/Invisible-Payload-Scanner/releases), right-click it and choose Extract All. Keep `Start-InvisiblePayloadScanner.cmd`, `.ps1`, `www`, and `rules` together. Do not install, build or launch the project you want to check yet.
+2. **Start the scanner.**
 
-Some recent attacks are literally invisible:
+   Double-click **`Start-InvisiblePayloadScanner.cmd` inside the extracted scanner folder**. Its browser screen opens. Leave the PowerShell window open. This step does not mean double-clicking executable files in the project being checked.
+3. **Choose the folder to check.**
 
-- commands hidden in source with **invisible special characters** (GlassWorm-style invisible Unicode),
-- settings that run **the moment you open or install** (`postinstall`, an editor's `tasks.json`),
-- traps slipped into **AI-agent instruction files** (`CLAUDE.md` / `AGENTS.md` / `.cursor/rules`).
+   Open the target folder in File Explorer, click the address bar and copy its path. Paste it into the scanner and press **Scan**. Quoted paths are accepted. You can normally leave Advanced settings closed.
 
-Interview tasks, sample code, a repo a friend sent, a project you had an AI generate — some of these run the instant you open them. This tool looks at those entry points **before you run anything**.
+If Windows shows a warning, first verify the source and file using the download verification instructions below. Do not dismiss warnings when unsure. On a managed PC, ask your administrator about execution restrictions.
 
----
+The input is a **project folder**. Extract a zip before choosing it. This tool does not inspect image, video, PDF, executable or archive contents, and does not diagnose whole-PC infection.
 
-## How to use it (3 steps)
+## Read these parts of the result
 
-1. **Download & unzip** the latest `InvisiblePayloadScanner-v0.5.0.zip` from Releases. **Don't `npm install`, build, or run it yet.**
-2. **Double-click `Start-InvisiblePayloadScanner.cmd`.** A local Web UI opens in your browser.
-   - ⚠ Windows SmartScreen ("Windows protected your PC") may appear. That is expected for running this bundled local script — click **More info → Run anyway**. Limit this only to this tool's bundled `.ps1`; never do the same for `.cmd` / `.ps1` files of unknown origin. (The `.cmd` launcher uses `-ExecutionPolicy Bypass` solely to run the bundled `Start-InvisiblePayloadScanner.ps1`.)
-3. **Pick a folder and scan.** Paste the path of the project folder you want to check and press **Scan**. A **verdict card** appears within a few seconds (depending on folder size).
-   - The easiest way to enter a path is to open the target folder in File Explorer and copy the address bar. Quoted paths such as `"C:\path\to\project"` are accepted.
+| Display | Meaning |
+| --- | --- |
+| **Findings** | Red means stop before running; yellow means review. “No findings” applies only to the checked scope. |
+| **Scope checked** | Unreadable files or cut-off checks are shown separately, even with zero findings. |
+| **What to do next (optional)** | How to save a record and seek help if you already performed a relevant operation. |
 
-> Before scanning, a line is always shown at the top: "This tool only reads files; it does not run or send anything. Results stay on this PC."
+Unsupported images alone do not make a result dangerous. Empty folders and folders containing only unsupported files are reported as not assessed. **No findings or completed processing do not prove safety or recovery.**
 
----
+Only relevant execution findings offer “Not run / Run / Not sure.” **Downloading and scanning do not count as execution.** Installation is also distinct from launch or import. Answers do not change findings, severity or check coverage.
 
-## Reading the verdict (v0.5.0 Evidence-First Supply Chain Scan)
+Reporting execution does not establish infection or trigger blanket advice to disconnect or change every password. Where warranted, guidance identifies the operation, environment and evidence, then explains the steps. It is fine to consult support while unsure.
 
-![Invisible Payload Scanner: v0.5.0 Supply Chain Scan findings example](docs/preview-SupplyChainScan.png)
+## Save, consult and close
 
-When the scan finishes, a large **verdict card** appears first — before any table — answering "so, is this folder safe to touch?"
+- **You do not have to fix it yourself.** Save JSON results for a technical person or AI to review without running the target. See [JSON Export](#json-export) for a prompt.
+- **For readable instructions**, open What to do next and choose Save response steps (text). Find the file in your browser's downloads. You can save without answering questions.
+- **After disconnecting**, the open results page and saved text remain readable. Closing or reloading the page loses the current result, so save what you need first.
+- **Cancel scan** stops the current attempt. A cancelled or failed attempt has no final result, and a previous result cannot be saved as if it came from that attempt.
+- **Quit tool** stops the local server. If the page does not respond, close the PowerShell window that launched this scanner.
 
-- 🔴 **Do not run this project.** A known attack pattern or a dangerous auto-run setting was found. Next steps:
-  1. Do **not** `npm install`, build, or run it.
-  2. Do **not** open it in VS Code / Cursor (use Restricted Mode if you must).
-  3. Save the result JSON and ask an expert or an AI.
-- 🟡 **There's something to check before running.** A suspicious entry point, or possibly a false positive. Check the listed files.
-- 🟢 **No dangerous entry points found.** Nothing obvious — but this is **not a complete safety guarantee** (keep using antivirus / EDR).
+JSON and text reports may contain local paths and usernames. Review them before sharing. The tool does not send them to a support service.
 
-> Hard terms are reworded inside the card (e.g. "variation selector" → "**invisible special character**", "install lifecycle script" → "**script that runs automatically on install**").
+## Improvements in v0.6.0
 
-To stop a running scan, press **Stop scan** next to the progress gauge (the server keeps running, so you can change settings and scan again). The **Quit tool** button stops the local server and closes the tool. If the page ever stops responding, closing the launched PowerShell window is also safe.
+- Separate findings from incomplete checks and their reasons.
+- Optional guidance for relevant operations, plus offline-readable text export.
+- A start screen centered on folder selection and scanning, with settings and the findings table collapsed.
+- Explicit failure when a required bundled rule pack is invalid or missing, without substituting another ruleset.
+- A reference-only result for dependency development settings, including tests with only literal loopback URLs and no other high-risk indicators. Details and JSON retain the original signal and explain the adjustment.
 
-> **It's OK if this feels hard.** Even with a 🔴 or 🟡, you don't have to fix anything yourself right now. Press `結果をJSON保存` (Save result as JSON) first, then ask a technical person or an AI agent to review it ("is this a finding I should stop for before running, or likely a false positive?"). How to ask an AI — and a prompt you can copy as-is — is in "[JSON Export](#json-export)" below.
+The November 5, 2026 pre-release update adds known-version detection for TensorLake npm and combined indicators for the tampered Claude Code extension distributed through Cursor. Malware removal and differential scanning are not provided.
 
----
+### Added TensorLake and Cursor checks
+
+- **TensorLake npm**: matches the affected `tensorlake@0.5.144` version and checks JS-family files under `node_modules/tensorlake/` against existing IOCs even with full node_modules scanning off. Lockfile proximity matches and dependency specifications remain candidates. This does not apply to the same-named PyPI package. [Research source](https://socket.dev/blog/tensorlake-compromise)
+- **Cursor-distributed Claude Code extension**: select the installed extension folder or a folder unpacked using a trusted method. A finding requires both the published attacker IP and SSH key label in the same `extension.js`. The corrected advisory covers `2.1.312` and `2.1.313`; names or versions alone do not establish malicious content. [Cursor advisory, corrected October 30](https://cursor.com/blog/claude-code-extension-security-notice)
+
+A project scan does not inspect IDE extensions outside its selected folder. Automatic VSIX/ZIP extraction, archive hash matching, and whole-host SSH or persistence checks are out of scope. Oversize bundles are reported as incomplete. Missing indicators do not prove safety; matching indicators do not prove execution or infection. If executed, consult support about the affected environment and persistence; uninstalling the extension or dependency alone may not resolve the incident. Rules and sources are bundled in `rules/v0.6/october-2026-incidents.json`.
+
 
 ## What's new in v0.5.0 "Evidence-First Supply Chain Scan"
 
@@ -87,10 +93,10 @@ v0.5.0 keeps the verdict card, scan cancel, SHA-256 verification, download-and-e
 Before extracting, run this one line in PowerShell (adjust the file name to the version you downloaded):
 
 ```powershell
-Get-FileHash .\InvisiblePayloadScanner-v0.5.0.zip -Algorithm SHA256
+Get-FileHash .\InvisiblePayloadScanner-v0.6.0.zip -Algorithm SHA256
 ```
 
-If the displayed value matches the **zip SHA-256** listed on the GitHub Release page, the file is authentic. If it does not match, do not use it — download it again from the Release page. The startup PowerShell window also prints `Script SHA-256:` for the extracted `Start-InvisiblePayloadScanner.ps1` that is actually running. This is a different value from the zip archive's SHA-256. Code signing (Authenticode) is a future consideration; comparison against the SHA-256 listed on the GitHub Release is the current verification method.
+If the displayed value matches the **zip SHA-256** listed on the GitHub Release page, you have confirmed a match with the published archive. This does not prove the code is safe. If it does not match, do not use it — download it again from the Release page. The startup PowerShell window also prints `Script SHA-256:` for the extracted `Start-InvisiblePayloadScanner.ps1` that is actually running. This is a different value from the zip archive's SHA-256. Code signing (Authenticode) is a future consideration; comparison against the SHA-256 listed on the GitHub Release is the current verification method.
 
 ---
 
@@ -167,30 +173,16 @@ Classify and explain:
 - dangerous findings to stop for immediately
 - findings likely to be false positives
 - additional files or package.json scripts to check
-- safe actions to take before running anything
+- incomplete and excluded checks (coverage)
+- reported execution state and guidance evidence (responseGuidance); unanswered is not the same as not run
+- relevant actions before or after execution, without assuming the operation or environment
 
 Summarize the conclusion briefly, in terms a non-expert can understand.
 ```
 
-## Extra Defense for npm-style Projects
+## Additional developer controls
 
-If this scanner reports a finding, or if you are handling an unfamiliar Node.js project, you can also consider package-manager-level safeguards before running install/build commands.
-
-This scanner does not apply these settings automatically. Changing package managers can change project behavior, so review the change with someone technical or ask an AI agent to explain the impact before applying it.
-
-Example for pnpm:
-
-```yaml
-# pnpm-workspace.yaml
-minimumReleaseAge: 4320
-minimumReleaseAgeStrict: true
-blockExoticSubdeps: true
-```
-
-- `minimumReleaseAge` delays newly published packages before they can be installed. `4320` means three days.
-- `minimumReleaseAgeStrict: true` fails dependency resolution if no version satisfies the maturity window.
-- `blockExoticSubdeps: true` prevents transitive dependencies from resolving code from git or direct tarball URLs.
-- To control install scripts, check `allowBuilds` or `pnpm approve-builds` in pnpm 11.
+Discuss dependency and automation changes with the developer or administrator after reviewing the findings. Do not automatically install or build a flagged project merely to investigate it.
 
 ## Default GlassWorm-Style Pattern
 
@@ -300,22 +292,23 @@ Findings inside editor or AI-tool extension folders, such as `.vscode/extensions
 
 Recommended triage:
 
-1. Raise the threshold to `16` and scan again.
-2. Exclude `README.md;*.md` and scan executable file types.
+1. Save the result JSON and check the scan coverage for anything left unexamined.
+2. Review the finding and whether you performed the relevant operation. Choose “Not sure” if you do not know.
 3. If long invisible runs appear in executed files, stop using the package or repository until reviewed.
 4. If you have not run `npm install`, build scripts, or project commands yet, do not run them until the source is checked.
 5. Check package origin, recent commits, install scripts, editor tasks, Git hooks, and official advisories.
 6. If `.husky/` or `.githooks/` is reported, review it before running git actions such as commit, checkout, merge, or push.
-7. If a `Critical` or `High` finding appears after you already ran the project, consider rotating GitHub tokens, npm tokens, API keys, SSH keys, and other credentials that may have been exposed.
+7. Use the optional next steps to record what ran and where. Discuss potentially exposed credentials with someone knowledgeable; a severity label alone does not establish exposure.
 8. If you are unsure, ask a technical person or an AI system to review the JSON. For non-local AI services, remove local paths, user names, project names, snippets, and secrets first.
 
 ---
 
 ## Releases / which one should I use?
 
-Normally, use the latest **v0.5.0 Evidence-First Supply Chain Scan**. In the Web UI, keep `両方まとめて確認（v0.5おすすめ）` (check both — recommended) selected, and switch the scan type only when you want invisible-Unicode-only checks.
+This package is **v0.6.0**. Normally, keep the default setting that runs both checks. See [Releases](https://github.com/ryojihido/Invisible-Payload-Scanner/releases) for published downloads.
 
-- **v0.5.0 Evidence-First Supply Chain Scan (recommended)** — adds confirmed npm incident version/IOC matching and targeted dependency inspection, including import-time payload patterns.
+- **v0.6.0** — scan coverage and incomplete-check reasons, optional response guidance, text export and reduced dependency-script noise.
+- **v0.5.0 Evidence-First Supply Chain Scan (historical)** — adds confirmed npm incident version/IOC matching and targeted dependency inspection, including import-time payload patterns.
 - **v0.4.1 Verdict-First UX (historical)** — v0.4.0 plus a fix for scan failures in folders containing multi-GB model files.
 - **v0.4.0 Verdict-First UX (historical)** — verdict + next steps, scan cancel, SHA-256 verification, download-and-execute detection. It had a bug that could stop scans in folders containing multi-GB model files; v0.4.1 fixes it.
 - **v0.3.1 Context-Aware Triage** — separates the detection signal from response priority. The UI can switch between Japanese and English.

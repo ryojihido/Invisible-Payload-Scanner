@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "0.6",
+  "updatedAt": "2026-11-05",
+  "description": "Static indicators for the October 2026 TensorLake npm and Cursor-distributed Claude Code extension incidents. No artifact is downloaded or executed. Extension version numbers alone are not malicious indicators.",
+  "sources": [
+    {
+      "url": "https://socket.dev/blog/tensorlake-compromise",
+      "publishedAt": "2026-10-08",
+      "checkedAt": "2026-11-05",
+      "scope": "npm tensorlake 0.5.144; lib/setup.mjs and lib/Math_Symbol.js. This is not a PyPI rule."
+    },
+    {
+      "url": "https://cursor.com/blog/claude-code-extension-security-notice",
+      "publishedAt": "2026-10-29",
+      "advisoryUpdatedAt": "2026-10-30",
+      "checkedAt": "2026-11-05",
+      "scope": "Tampered Cursor marketplace Anthropic.claude-code 2.1.312 and 2.1.313 for macOS and Windows; the advisory identifies both markers in extension.js. Same-version artifacts from other channels are not classified by version alone."
+    }
+  ],
+  "rulesets": [
+    {
+      "id": "october-2026-tensorlake-cursor",
+      "stringIocs": [],
+      "targetedNodeModulePathPatterns": [
+        "[\\\\/]node_modules[\\\\/]tensorlake[\\\\/].+\\.(js|mjs|cjs)$"
+      ],
+      "packageVersionRules": [
+        {
+          "name": "tensorlake",
+          "versions": ["0.5.144"],
+          "message": "Confirmed affected TensorLake npm version from the 2026-10-08 ChainDrop incident. The release contains a malicious preinstall loader. Presence alone does not prove execution."
+        }
+      ],
+      "combinedIocs": [
+        {
+          "id": "cursor-claude-extension-ssh-backdoor-2026-10-29",
+          "fileName": "extension.js",
+          "allOfPatterns": [
+            "(?<![0-9.])134\\.209\\.82\\.225(?![0-9.])",
+            "(?<![A-Za-z0-9_-])svc-telemetry(?![A-Za-z0-9_-])"
+          ],
+          "message": "Both published Cursor Claude Code SSH-backdoor markers occur in extension.js. This is code evidence, not a version-only match or proof of execution.",
+          "recommendation": "Stop using this extension pending review. Compare the code and distribution source with Cursor's 2026-10-29 advisory, updated 2026-10-30. If it ran, investigate that host; uninstalling the extension alone may leave persistence. This scanner does not inspect SSH configuration or remove the backdoor."
+        }
+      ]
+    }
+  ]
+}
